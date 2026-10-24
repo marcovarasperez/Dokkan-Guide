@@ -1,0 +1,21 @@
+node_modules/
+dist/
+# Seeds regenerables con tools/sync.mjs (se incluyen en el repo por ahora para apertura instantánea)
+# app/public/data/
+
+# Capacitor (Android): solo salidas de compilación, el proyecto Gradle sí se versiona
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/capacitor-cordova-android-lib/build/
+app/android/local.properties
+
+# Tauri (Windows): salida de Cargo
+app/src-tauri/target/
+app/src-tauri/gen/schemas/
+
+*.log
+.DS_Store
+
+# Caché regenerable de tools/drops_sync.mjs (24 h)
+tools/.drops-cache.json

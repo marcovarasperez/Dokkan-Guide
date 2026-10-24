@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-20T19:40:43.577Z",
+  "_doc": {
+    "descripcion": "Guías curated de Hidden Potential por unidad (distribución de niveles: Adicional/Crítico/Evasión, reparto estándar 15+11+0). Cada entrada cita su autor (p. ej. 'CelticLink'). El adaptador la usa antes que los votos de DOKKAN.FYI y antes del fallback estimado. Esquema completo: docs/hidden_potential_schema.md",
+    "entrada": {
+      "unitId": "id numérico de dokkan.fyi (obligatorio, debe existir en units.index.json)",
+      "variant": "'base' | 'eza' (opcional; por defecto 'base'; 'eza' cubre EZA y SEZA)",
+      "levels": {
+        "additional": "0-15",
+        "critical": "0-15",
+        "evasion": "0-15"
+      },
+      "note": "frase corta opcional",
+      "source": "cita obligatoria del autor (p. ej. 'CelticLink')",
+      "sourceUrl": "URL opcional de la fuente (sin YouTube/TikTok en la app)",
+      "guideDate": "fecha ISO opcional"
+    },
+    "actualizacion": "Edita a mano este archivo siguiendo docs/hidden_potential_schema.md; cada entrada debe citar su fuente."
+  },
+  "entries": []
+}

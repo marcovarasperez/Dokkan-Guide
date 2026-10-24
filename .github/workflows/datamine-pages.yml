@@ -1,0 +1,52 @@
+# Publica el feed datamine (JSON de la semilla) en GitHub Pages.
+#
+# Se activa con cada push que toque app/public/data/** (regenerado por
+# tools/game_sync.mjs --write o tools/sync.mjs). La app se autoactualiza desde
+# https://<usuario>.github.io/<repo>/ — fija esa URL en
+# app/src/data/sources.ts (DATAMINE_BASE). Ver docs/DATAMINE.md §6.
+#
+# Requisito (una sola vez): Settings → Pages → Source = "GitHub Actions".
+
+name: datamine-pages
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'app/public/data/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar feed
+        run: |
+          mkdir -p _feed
+          cp app/public/data/units.index.json _feed/
+          cp app/public/data/meta.json _feed/
+          for f in links.index.json categories.index.json drops.index.json; do
+            if [ -f "app/public/data/$f" ]; then cp "app/public/data/$f" _feed/; fi
+          done
+          printf '<!doctype html><meta charset="utf-8"><title>Dokkan Fan Guide — feed datamine</title><p>Feed JSON del datamine del cliente DOKKAN. Proyecto fan no comercial.</p>' > _feed/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _feed
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

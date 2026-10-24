@@ -1,0 +1,23 @@
+[package]
+name = "dokkan-fan-guide"
+version = "0.2.0"
+description = "Guía fan de Dokkan Battle Global (proyecto no comercial) — datos: DOKKAN.FYI"
+authors = ["Dokkan Fan Guide"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-http = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

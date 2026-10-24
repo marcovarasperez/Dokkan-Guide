@@ -1,0 +1,32 @@
+{
+  "name": "dokkan-fan-guide",
+  "private": true,
+  "version": "0.4.1",
+  "type": "module",
+  "description": "Fan-made DBZ Dokkan Battle (Global) unit guide with optimal Hidden Potential. Non-commercial fan project. Data: DOKKANINFO.COM",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync": "node ../tools/sync.mjs",
+    "cap:sync": "npm run build && cap sync android",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@preact/signals": "^2.0.4",
+    "@tauri-apps/plugin-http": "^2.8.3",
+    "preact": "^10.27.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.5",
+    "@tauri-apps/cli": "^2.12.3",
+    "typescript": "^5.7.0",
+    "vite": "^6.3.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  }
+}

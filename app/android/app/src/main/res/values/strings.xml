@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dokkan Fan Guide</string>
+    <string name="title_activity_main">Dokkan Fan Guide</string>
+    <string name="package_name">fan.dokkanguide.global</string>
+    <string name="custom_url_scheme">fan.dokkanguide.global</string>
+</resources>
