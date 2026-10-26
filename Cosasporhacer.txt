@@ -1,0 +1,35 @@
+Resumen para la IA que continúe
+Objetivo del usuario
+
+App Dokkan Fan Guide (TypeScript + Vite, empaquetada a APK con Capacitor). Requisitos:
+
+Todos los datos (unidades, información, categorías, etc.) se guardan en una base de datos local, para usar la app sin conexión.
+Al abrir la app, si hay conexión, se actualiza. Luego se repite cada 5 min.
+Si hay contenido nuevo, se guarda en la BD. Si algo cambia, se sobrescribe también en la BD.
+El usuario quiere que se le pregunte todas las veces que haga falta antes de implementar.
+Lo que se ha hecho (solo exploración, sin cambios de código)
+Ya existe una BD local con IndexedDB en app/src/model/localDb.ts. Guarda: unidades, noticias, eventos y banners.
+Ya existe sincronización en app/src/model/sync.ts: se ejecuta al abrir y se auto-refresca cada 5 min.
+Se revisó cómo se cargan los JSON empaquetados (categorías, links, drops, zbattles, potencial oculto). Se están leyendo del bundle y no de la BD.
+Se revisó qué fuentes remotas existen para esos índices.
+Lo que falta
+Migrar a la BD los datos que hoy salen de JSON empaquetados: categorías, links, drops, zbattles y potencial oculto. Añadir sus stores en localDb.ts. Hay que subir la versión de IndexedDB y gestionar la migración.
+Ampliar sync.ts para que sincronice también esos conjuntos: descargar, comparar con lo guardado, insertar lo nuevo y sobrescribir lo modificado.
+Cambiar la capa de lectura (model/) para que la UI lea siempre de la BD. Los JSON empaquetados quedan solo como carga inicial (seed) del primer arranque offline.
+Gestión de errores y offline: que la sincronización falle en silencio sin conexión y que la app funcione con lo guardado.
+Comprobar el comportamiento en el APK de Capacitor (persistencia de IndexedDB, arranque sin red).
+Pregunta pendiente al usuario (bloquea la implementación)
+
+No hay una fuente remota clara para actualizar esos índices (categorías, links, drops, zbattles, potencial oculto). Hay que preguntarle cómo actualizarlos. Las opciones habituales son:
+
+Un endpoint o JSON remoto propio que se publique y se descargue.
+Reutilizar las mismas fuentes remotas que ya usa sync.ts para las unidades.
+Mantenerlos empaquetados y solo actualizarlos con cada nueva versión de la app.
+
+Hay que confirmar la opción elegida antes de escribir código, y seguir preguntando ante cualquier otra duda.
+
+Contexto técnico
+Ruta del proyecto: C:\Users\marco\Documents\Proyecto predeterminado\app
+appId: fan.dokkanguide.global, webDir: 'dist', androidScheme: https
+Entorno: Windows + PowerShell
+Preferencia del usuario: soluciones simples y directas, sin explicaciones largas.

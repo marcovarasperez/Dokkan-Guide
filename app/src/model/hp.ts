@@ -5,7 +5,7 @@ import type { UnitFull } from './detail';
  * CALCULADORA DE HIDDEN POTENTIAL (Global).
  *
  * Reglas (al pie de la letra):
- *  - 21 puntos a repartir. Máximo 15 en una categoría y 6 en otra; la tercera
+ *  - 21 puntos a repartir. Máximo 15 en unpm.cmd run dev          na categoría y 6 en otra; la tercera
  *    queda a 0 salvo los puntos de AFINIDAD.
  *  - Cada afinidad aporta 5 puntos iniciales, que se SUMAN en su categoría:
  *    AGL→5 Adicional · STR→5 Crítico · TEQ→5 Crítico · INT→5 Evasión · PHY→5 Adicional.
