@@ -1,0 +1,90 @@
+import type { TargetedEvent } from 'preact';
+import type { UnitSummary } from '../model/types';
+import { freshIds } from '../model/repository';
+import { frameUrl, thumbUrl, typeIconUrl, rarityIconUrl, TYPE_COLORS } from '../model/adapter';
+
+/** Variante .avif de una URL .png del CDN. */
+const avif = (url: string): string => url.replace(/\.png$/i, '.avif');
+
+/** Imagen rota → oculta; el marco de color de la celda hace de fallback. */
+const hideBroken = (e: TargetedEvent<HTMLImageElement, Event>): void => {
+  e.currentTarget.classList.add('img-broken');
+};
+
+/** Forma mínima que necesita la celda (el UnitSummary del índice la cumple). */
+export type UnitCardData = Pick<
+  UnitSummary,
+  'id' | 'name' | 'type' | 'class' | 'rarity' | 'thumbnailId' | 'hasEza' | 'hasSeza'
+>;
+
+/** Celda del listado: arte + marco + iconos, replicando la composición del juego. */
+export default function UnitCard({ unit }: { unit: UnitCardData }) {
+  const color = TYPE_COLORS[unit.type] ?? '#555';
+  const frame = frameUrl(unit.type, unit.rarity);
+  const thumb = thumbUrl(unit.thumbnailId);
+  const badge = unit.hasSeza ? 'SEZA' : unit.hasEza ? 'EZA' : null;
+  // Nueva (o EZA/SEZA recién aplicado) según la última sincronización.
+  const fresh = freshIds.value.has(unit.id);
+
+  return (
+    <article class="unit-card" title={unit.name}>
+      <a class="unit-card__link" href={`#/characters/${unit.id}`} aria-label={`Ver ficha de ${unit.name}`}></a>
+      <div class="unit-card__art" style={{ background: color }}>
+        {fresh && <span class="unit-card__badge unit-card__badge--new">NUEVA</span>}
+        {badge && (
+          <span class={`unit-card__badge unit-card__badge--${badge.toLowerCase()}`}>{badge}</span>
+        )}
+        <picture class="unit-card__frame">
+          <source srcset={avif(frame)} type="image/avif" />
+          <img
+            src={frame}
+            width={120}
+            height={120}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={hideBroken}
+          />
+        </picture>
+        <picture class="unit-card__thumb">
+          <source srcset={avif(thumb)} type="image/avif" />
+          <img
+            src={thumb}
+            width={150}
+            height={150}
+            alt={`Arte de ${unit.name}`}
+            title={unit.name}
+            loading="lazy"
+            draggable={false}
+            onError={hideBroken}
+          />
+        </picture>
+        <img
+          class="unit-card__type-icon"
+          src={typeIconUrl(unit.type, unit.class)}
+          width={58}
+          height={58}
+          alt={`Tipo ${unit.type} ${unit.class}`}
+          loading="lazy"
+          draggable={false}
+          onError={hideBroken}
+        />
+        <img
+          class="unit-card__rarity-icon"
+          src={rarityIconUrl(unit.rarity)}
+          width={72}
+          height={72}
+          alt={`Rareza ${unit.rarity}`}
+          loading="lazy"
+          draggable={false}
+          onError={hideBroken}
+        />
+      </div>
+      <p class="unit-card__name" title={unit.name}>
+        {unit.name}
+      </p>
+      {/* La barra "LR · #id" se eliminó a petición: la rareza ya va en el
+          icono del arte y el id no aporta nada en el listado. */}
+    </article>
+  );
+}

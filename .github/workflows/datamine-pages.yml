@@ -39,7 +39,7 @@ jobs:
           mkdir -p _feed
           cp app/public/data/units.index.json _feed/
           cp app/public/data/meta.json _feed/
-          for f in links.index.json categories.index.json drops.index.json; do
+          for f in links.index.json categories.index.json drops.index.json zbattles.index.json; do
             if [ -f "app/public/data/$f" ]; then cp "app/public/data/$f" _feed/; fi
           done
           printf '<!doctype html><meta charset="utf-8"><title>Dokkan Fan Guide — feed datamine</title><p>Feed JSON del datamine del cliente DOKKAN. Proyecto fan no comercial.</p>' > _feed/index.html

@@ -87,7 +87,7 @@ a {
   height: 100dvh; /* móvil: altura dinámica con la barra del navegador */
 }
 
-/* Contenedor pegajoso: header + barra de estado */
+/* Contenedor pegajoso: cabecera (con el chip «Actualizado: …») */
 .app-top {
   position: sticky;
   top: 0;
@@ -142,6 +142,20 @@ a {
   border-radius: 3px;
 }
 
+/* «Actualizado: 25/10/2026, 14:33» al lado de la marca: se refresca con la
+   sincronización automática (cada 5 min) o con el botón manual. */
+.app-header__updated {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #b7f0c3;
+  background: rgba(76, 175, 80, 0.16);
+  border: 1px solid rgba(76, 175, 80, 0.45);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .app-header__nav {
   display: flex;
   align-items: center;
@@ -168,67 +182,6 @@ a {
   font-size: 10px;
   color: #8a8a8a;
   letter-spacing: 0.02em;
-}
-
-/* ---------- Barra de estado ---------- */
-
-.status-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  background: #242424;
-  border-bottom: 1px solid #000;
-  padding: 6px 16px;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-dim);
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-
-.status-chip--ok {
-  color: #9ccc65;
-}
-
-.status-chip--error {
-  color: #ef9a9a;
-}
-
-.status-chip__spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #666;
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: status-spin 0.8s linear infinite;
-}
-
-@keyframes status-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.status-bar__refresh {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--text);
-  transition: background var(--transition);
-}
-
-.status-bar__refresh:hover:not(:disabled) {
-  background: #4d4d4d;
 }
 
 /* ---------- Barra de filtros ---------- */
@@ -446,13 +399,15 @@ a {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
-/* Lienzo del arte: la "caja" del personaje al estilo del juego — cuadrado
-   grande (150×150) que domina la celda; el arte va recortado a sangre dentro
-   y los iconos se salen por sus esquinas, como en la lista original. */
+/* Lienzo del arte: la "caja" del personaje al estilo del juego. Es CUADRADA y
+   RESPONSIVE: mide el ancho de la celda (con su margen) y crece con ella —
+   UnitGrid calcula las columnas con --card-ideal/--card-min, así que el arte
+   siempre llena su columna sin recortarse. */
 .unit-card__art {
   position: relative;
-  width: 150px;
-  height: 150px;
+  width: calc(100% - 16px);
+  max-width: 176px; /* tope para que no desborde la fila (--card-row) */
+  aspect-ratio: 1 / 1;
   margin: 12px auto 0;
   border-radius: 15px;
   flex: 0 0 auto;
@@ -468,6 +423,7 @@ a {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 
 .unit-card__thumb {
@@ -492,17 +448,24 @@ a {
   object-fit: cover;
 }
 
+/* Insignias de tipo/rareza: mismo tamaño RELATIVO al arte (38%/48% del
+   lado, como los 58/72 px fijos sobre los 150 px originales) y montadas en
+   sus esquinas con offsets proporcionales, así escalan con la celda. */
 .unit-card__type-icon {
   position: absolute;
-  top: -12px;
-  right: -12px; /* insignia montada sobre la esquina, como en el juego */
+  top: -8%;
+  right: -8%; /* insignia montada sobre la esquina, como en el juego */
+  width: 38%;
+  height: auto;
   z-index: 3;
 }
 
 .unit-card__rarity-icon {
   position: absolute;
-  bottom: -16px;
-  left: -20px; /* letras saliéndose por la esquina inferior izquierda, como en el juego */
+  bottom: -11%;
+  left: -13%; /* letras saliéndose por la esquina inferior izquierda, como en el juego */
+  width: 48%;
+  height: auto;
   z-index: 3;
 }
 
@@ -575,11 +538,6 @@ a {
     justify-content: flex-start;
   }
 
-  .status-bar {
-    justify-content: space-between;
-    padding: 6px 10px;
-  }
-
   .filter-bar {
     margin: 10px 10px 0;
     padding: 10px;
@@ -602,10 +560,10 @@ a {
     --card-min: 96px;
   }
 
+  /* El arte es fluido (calc(100% - 16px)) y se escala con su columna; aquí
+     solo se ajusta su tope para que la celda siga cuadrando con --card-row */
   .unit-card__art {
-    transform: scale(0.7);
-    transform-origin: top center;
-    height: 105px; /* 150 × 0.7: la caja de layout sigue a la escala */
+    max-width: 128px;
     margin-top: 8px;
   }
 
@@ -689,6 +647,7 @@ a {
 /* Caja fija con la proporción del arte COMPLETO (426×568): la ilustración
    entra entera y todas las unidades se muestran exactamente igual. */
 .detail-hero__art {
+  position: relative;
   flex: 0 0 auto;
   width: 228px;
   height: 304px;
@@ -704,6 +663,26 @@ a {
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
 }
 
+/* Animación LWF de la carta: lienzo 426×568 escalado a la caja del arte y
+   superpuesto al <img> estático. Invisible hasta que el motor confirma que
+   texturas y primer fotograma están listos (si falla, nunca aparece y se ve
+   el arte de detrás, que no se desmonta nunca). */
+.detail-hero__anim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+  transition: opacity 0.25s ease;
+}
+
+.detail-hero__anim.is-ready {
+  opacity: 1;
+}
+
 .detail-hero__info {
   flex: 1 1 auto;
   min-width: 0;
@@ -716,6 +695,17 @@ a {
   margin: 0;
   font-size: 24px;
   line-height: 1.2;
+}
+
+/* Subtítulo del personaje (título de la carta): va antes que el nombre, en
+   pequeño y apagado, para no competir con él. */
+.detail-hero__subtitle {
+  margin: 0 0 -4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
 }
 
 .detail-hero__tags {
@@ -809,6 +799,12 @@ a {
 
   .detail-hero__art {
     flex-basis: auto;
+  }
+
+  /* Los selectores de estados/formas se centran sobre el nombre */
+  .hero-states,
+  .hero-forms {
+    justify-content: center;
   }
 }
 
@@ -1215,6 +1211,12 @@ a {
   .detail-hero__art {
     flex-basis: auto;
   }
+
+  /* Los selectores de estados/formas se centran sobre el nombre */
+  .hero-states,
+  .hero-forms {
+    justify-content: center;
+  }
 }
 
 /* ---------- Noticias y banners (Fase 5) ---------- */
@@ -1503,6 +1505,40 @@ a {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* Sub-bloque dentro de un grupo: banners Activos/Finalizados y medallas
+   EZA/SEZA. El rótulo va en versalitas con un contador de entradas. */
+.acq-sub-block {
+  margin-top: 8px;
+}
+
+.acq-sub2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.acq-sub2__count {
+  padding: 1px 7px;
+  font-size: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+}
+
+.acq-sub2--eza {
+  color: #ffca28;
+}
+
+.acq-sub2--seza {
+  color: #ce93d8;
 }
 
 .acq-banners {
@@ -2166,6 +2202,55 @@ button.baba-jewel:focus-visible {
   border-color: rgba(67, 160, 71, 0.5);
 }
 
+/* ===== EZA/SEZA: medallas de despertar necesarias ===== */
+.acq-medals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acq-medal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid rgba(255, 193, 7, 0.45);
+  border-radius: 999px;
+}
+
+.acq-medal b {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.acq-medal i {
+  font-style: normal;
+  font-weight: 800;
+  color: #ffca28;
+  white-space: nowrap;
+}
+
+/* Miniatura de la medalla (assets de dokkaninfo, 22 px) */
+.acq-medal__img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+/* Medallas del SEZA («Super EZA»): mismo chip en violeta */
+.acq-medal--seza {
+  border-color: rgba(206, 147, 216, 0.55);
+  background: linear-gradient(180deg, rgba(206, 147, 216, 0.14), var(--panel-2) 70%);
+}
+
+.acq-medal--seza i {
+  color: #ce93d8;
+}
+
 /* ===== Eventos: tarjeta enfocada por deep-link ===== */
 .game-card--focus {
   outline: 2px solid var(--accent);
@@ -2504,15 +2589,35 @@ a.acq-chip {
   color: var(--accent);
 }
 
-/* ===== Ficha · Selector de formas (Actual · transformadas · pre-EZA) ===== */
-.form-bar {
+/* ===== Ficha · Selectores encima del nombre (estados arriba, formas debajo) ===== */
+/* Antes iban en una barra propia sobre la ficha; ahora viven dentro de la
+   columna del nombre, en dos filas apiladas: primero los estados SEZA/EZA/
+   Normal (si los hay) y debajo las formas transformadas. */
+.hero-states,
+.hero-forms {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: 6px;
+}
+
+/* La columna del nombre es estrecha: los chips ocupan lo que puedan */
+.hero-states .form-chip,
+.hero-forms .form-chip {
+  max-width: 100%;
+  font-size: 12px;
+}
+
+.hero-states .form-chip {
+  padding: 5px 11px;
+}
+
+.hero-forms .form-chip {
+  padding: 4px 10px 4px 4px;
+}
+
+.hero-forms .form-chip img {
+  width: 26px;
+  height: 26px;
 }
 
 .form-chip {
@@ -2600,7 +2705,31 @@ a.acq-chip {
   color: var(--text-dim);
 }
 
-/* ===== Ficha · Miniaturas de unidades (líderes 200%+, partners) ===== */
+/* Botón "Mostrar más (N)" / "Mostrar menos" de las listas largas de la
+   ficha (líderes, sublíderes y mejores linking partners). */
+.list-more {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.list-more:hover,
+.list-more:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ===== Ficha · Miniaturas de unidades (líderes 170%+, partners) ===== */
 .mini-units {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));

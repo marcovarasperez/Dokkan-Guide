@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import App from './ui/App';
+import App from './view/App';
 import './styles/app.css';
 
 // Punto de montaje de la app (Fase 2: UI)

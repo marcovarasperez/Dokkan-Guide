@@ -25,15 +25,16 @@ Proyecto predeterminado/
 ├── tools/
 │   ├── sync.mjs                # Seed base de unidades (semilla offline; formato compatible con dokkaninfo)
 │   ├── drops_sync.mjs          # Genera public/data/drops.index.json desde dokkaninfo (curl + UA; Node ≥18)
+│   ├── zbattles_sync.mjs       # Genera public/data/zbattles.index.json (Z-Battle → título + carta objetivo)
 │   └── wiki_sync.mjs           # Genera links.index.json (efectos Nv.1/Nv.10) y categories.index.json (líderes + miembros)
 ├── app/                        # Código de la app (Vite + TypeScript + Preact)
-│   ├── public/data/            # Seeds empaquetados: units.index, meta, news.seed, hidden_potential, drops.index, links.index, categories.index
+│   ├── public/data/            # Seeds empaquetados: units.index, meta, news.seed, hidden_potential, drops.index, zbattles.index, links.index, categories.index
 │   ├── capacitor.config.ts     # Config de Capacitor → app/android (APK)
 │   ├── android/                # Proyecto Gradle generado por Capacitor (compilación Android)
 │   ├── src-tauri/              # Shell Tauri 2: Cargo.toml, tauri.conf.json, capabilities, iconos (.exe Windows)
 │   └── src/
 │       ├── data/               # types, adapter (URLs de arte), repository, sync, http (transportes nativos), html, dinfo (parsers dokkaninfo), detail (ficha + obtención), hp, news, bannerArchive (banners), game (Eventos + Baba), format
-│       ├── ui/                 # App (router hash de 5 secciones), Header, FilterBar, StatusBar, UnitGrid (virtualizado), UnitCard, UnitDetail, NewsView, NewsDetail, BannersView, BannerDetail, EventosView, BabaView, InfoImg, SkillRich, gameShared
+│       ├── ui/                 # App (router hash de 5 secciones), Header, FilterBar, UnitGrid (virtualizado), UnitCard, UnitDetail, NewsView, NewsDetail, BannersView, BannerDetail, EventosView, BabaView, InfoImg, SkillRich, gameShared
 │       └── styles/             # Tema oscuro propio (variables + componentes)
 ├── docs/
 │   ├── BUILD.md                # Compilación: APK (Capacitor) y .exe (Tauri)
@@ -48,8 +49,9 @@ Proyecto predeterminado/
 ## Comandos
 
 ```powershell
-# 1) Regenerar el índice de drops (eventos → cartas), ~2-3 min la primera vez
-node tools\drops_sync.mjs        # usa caché local (tools\.drops-cache.json); --force la ignora
+# 1) Regenerar los índices de obtención (drops y Z-Battle de EZA/SEZA)
+node tools\drops_sync.mjs        # eventos → cartas; usa caché local (tools\.drops-cache.json); --force la ignora
+node tools\zbattles_sync.mjs     # Z-Battle → título + carta objetivo (caché 7 días)
 
 # 2) Desarrollo
 cd app
@@ -74,7 +76,7 @@ npx tauri build --no-bundle   # solo .exe portable (sin instaladores NSIS/MSI)
   - `repository.ts`: caché en dos niveles — **seed empaquetado** (apertura instantánea) + **delta en localStorage** (unidades nuevas/modificadas detectadas en caliente).
   - `sync.ts`: sincronización incremental con **hash por fila** (FNV-1a): escanea `/cards`, compara fila vs. resumen local y re-descarga las cartas cambiadas/nuevas (máx. 12 por corrida, nuevas primero); integra el refresco de noticias.
   - `html.ts`: utilidades compartidas de HTML (decodificación de entidades).
-  - `detail.ts`: ficha perezosa con **caché en IndexedDB** (invalidada por hash); descarga `dokkaninfo.com/cards/{id}` (`datajson` → stats, leader/passive/active, SA con estilo/ki/multiplicadores, links, categorías, transformations, EZA live, `eza_open_date` → "EZA previsto") y compone "¿Dónde conseguirlo?" con los **banners del datajson**, el **índice de drops** (`drops.index.json`) y los **Z-Battles** de la unidad. Expone además los **mejores líderes 200%+** (`two_hundred_leaders`), los **mejores linking partners** (`similar_links`, con los links compartidos) y las **formas transformadas** (con icono) que alimentan el selector de la ficha. Recomienda Hidden Potential de 3 fuentes (curated → **método de Playmaker** → estimación) sobre el **estado vigente** de la carta.
+  - `detail.ts`: ficha perezosa con **caché en IndexedDB** (invalidada por hash); descarga `dokkaninfo.com/cards/{id}` (`datajson` → stats, leader/passive/active, SA con estilo/ki/multiplicadores, links, categorías, transformations, EZA live, `eza_open_date` → "EZA previsto") y compone "¿Dónde conseguirlo?" con los **banners del datajson** (separados por moneda: gemas vs tickets) y el **índice de drops** (`drops.index.json`), más la sección propia "¿Dónde conseguir el EZA/SEZA?" con el **Z-Battle propio** (`zbattles.index.json`, cruce por carta o por nombre) y las **medallas** (`eza_medals`). Expone además los **mejores líderes 200%+** (`two_hundred_leaders`), los **mejores linking partners** (`similar_links`, con los links compartidos) y las **formas transformadas** (con icono) que alimentan el selector de la ficha. Recomienda Hidden Potential de 3 fuentes (curated → **método de Playmaker** → estimación) sobre el **estado vigente** de la carta.
   - `news.ts`: noticias (lista paginada `news_json` + **cuerpo completo** por detalle, cacheado) con seed empaquetado para la primera apertura; el refresco corre dentro del mismo ciclo de sync (discreto, con throttle).
   - `http.ts`: transporte — proxy Vite (`/dinfo`) en dev; en producción, **import dinámico** del transporte nativo correspondiente (Tauri `plugin-http` / Capacitor `CapacitorHttp`): coste cero en web, sin CORS en los shells. `fetchInfoText`/`fetchInfoImage` envían UA + Accept-Language (dokkaninfo filtra peticiones sin cabeceras de navegador) y descargan imágenes como blob (el `<img>` directo queda bloqueado por **ORB**).
   - `game.ts`: contenido de **Eventos** (6 sub-pestañas: Eventos, Quest, Historia DB, Z-Battles, Torneos, Misiones) leído de dokkaninfo — foto por evento + **detalle perezoso con niveles/etapas y drops** (cacheado en `localStorage`) — y **Tienda de Baba** (4 secciones, con detalle por joya: precio en joyas, stock y vigencia), con caché por sección.
@@ -117,8 +119,14 @@ npx tauri build --no-bundle   # solo .exe portable (sin instaladores NSIS/MSI)
 
 - **Banners**: el histórico completo del `datajson` de la carta (`banners[]`, con imágenes y fechas); los vigentes llevan el chip **"Activo ahora mismo"**, los pasados "Finalizado". Cada tarjeta enlaza a `#/banners/{id}`.
 - **Eventos donde cae**: generado por `tools/drops_sync.mjs` → `drops.index.json` (701 eventos × detalle → cartas por etapa, con nivel y dificultad); cada tarjeta muestra la **foto del evento** y enlaza a `#/eventos?ev={type}/{id}` (abre la pestaña correcta, carga el evento y lo desplaza).
-- **Evento EZA (Z-Battle)**: si la unidad tiene EZA/SEZA, su tarjeta de evento (con foto) aparece **una sola vez** en bloque propio al inicio de "¿Dónde conseguirlo?", enlazando a `#/eventos?ev=zbattle/{id}`.
+- Cada grupo (**Banner de gemas**, **Banner de tickets** y **Eventos**) muestra sus **6 primeras entradas** y el resto detrás del botón **"Mostrar más"**.
 - **chips**: Free to Play / Obtenible por Summons (`summonable`); si no hay datos concretos, una nota genérica con enlaces a Banners, Eventos y Tienda de Baba.
+
+## "¿Dónde conseguir el EZA/SEZA?" (sección propia)
+
+- **Evento Z-Battle propio de la unidad**: el `extreme_z_battles` del `datajson` **no está restringido a la carta** (para Perfect Cell devuelve 49 eventos de otras unidades), así que `tools/zbattles_sync.mjs` genera `zbattles.index.json` (210 eventos → título + carta objetivo + cartel). La ficha cruza primero por **id de la carta** (base y formas) y, si no hay match, por **nombre exacto**; la tarjeta muestra el **título real** del evento, su **foto** y enlaza a `#/eventos?ev=zbattle/{id}`.
+- **Medallas necesarias**: `eza_medals` del `datajson`, agrupadas por nombre y con la **cantidad total** (una entrada por escalón → se suman), por ejemplo `Perfect Cell [Silver] ×20`.
+- Los **Z-Battles ya no aparecen** en "¿Dónde conseguirlo?" (son mejoras, no obtención de la carta). Si la unidad tiene EZA/SEZA y el índice no enlaza ningún evento, se muestra una nota de respaldo.
 
 ## 5 secciones: Eventos y Tienda de Baba
 
@@ -146,7 +154,7 @@ La app se divide en **exactamente 5 secciones** en el encabezado: **Personajes**
 1. El origen no ofrece ETag/Last-Modified → la detección de cambios se hace **por hash de fila** (FNV-1a sobre JSON estable): al escanear `/cards` se comparan nombre, rareza, tipo, niveles, stats, fechas y flags contra el resumen local; solo se re-descargan las cartas **nuevas** (rareza ≥ SR, sin ids stub) o **cambiadas** (máx. 12 por corrida).
 2. Al abrir la app: se muestra la caché local al instante y, en segundo plano, **una** comprobación automática (máx. 1 por apertura, ≥15 min entre intentos). Estado discreto en el encabezado: "Actualizando…", "Al día", "Actualizado · +N nuevas", "Sin conexión — mostrando caché".
 3. Botón **Actualizar** manual que fuerza la comprobación.
-4. Para refrescar el índice de drops: `node tools\drops_sync.mjs`.
+4. Para refrescar los índices de obtención: `node tools\drops_sync.mjs` (eventos donde cae) y `node tools\zbattles_sync.mjs` (Z-Battle de EZA/SEZA).
 
 ## Compilación (APK + .exe)
 
@@ -160,6 +168,7 @@ Todo el procedimiento está en **`docs/BUILD.md`**:
 
 - **En la app compilada**: la comprobación automática aplica deltas encima del seed empaquetado (unidades nuevas/cambiadas + noticias); el seed se refresca al compilar una nueva versión (APK: `npx cap sync android`).
 - **Índice de drops**: `node tools\drops_sync.mjs` (recomendado antes de compilar; usa caché local de 24 h, `--force` la ignora).
+- **Índice de Z-Battle**: `node tools\zbattles_sync.mjs` (título + carta objetivo de cada Z-Battle; caché local de 7 días, `--force` la ignora).
 - **Guías de Hidden Potential**: editar `app/public/data/hidden_potential.json` a mano (esquema en `docs/hidden_potential_schema.md`), citando siempre el autor de la guía.
 
 ## Limitaciones conocidas

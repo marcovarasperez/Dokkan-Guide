@@ -19,3 +19,5 @@ app/src-tauri/gen/schemas/
 
 # Caché regenerable de tools/drops_sync.mjs (24 h)
 tools/.drops-cache.json
+# Caché regenerable de tools/zbattles_sync.mjs (7 días)
+tools/.zbattles-cache.json
