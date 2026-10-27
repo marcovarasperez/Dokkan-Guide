@@ -2,7 +2,7 @@ import { signal } from '@preact/signals';
 import { fetchInfoText } from './http';
 import { extractNewsBody, parseNewsList } from './dinfo';
 import { fetchNewsFromFyi } from './fyi';
-import { dbGet, dbSet, STORE_NEWS } from './localDb';
+import { parseEpoch } from './date';
 
 /**
  * Noticias — fuente: dokkaninfo.com (Fase 9).
@@ -13,10 +13,7 @@ import { dbGet, dbSet, STORE_NEWS } from './localDb';
  * - Cuerpo: cada noticia es SSR (/news/{id}); el bloque del artículo se
  *   extrae con extractNewsBody y se sanea en la vista (imágenes vía ORB,
  *   enlaces de evento re-mapeados a deep-links in-app).
- * - Caché en la base de datos local (store `news`) leída al arrancar →
- *   apertura instantánea y offline; seed empaquetado (news.seed.json) para
- *   la primera apertura sin red. La caché previa de localStorage se migra
- *   una sola vez y queda como respaldo si IndexedDB no está disponible.
+ * - En memoria únicamente (sin persistencia local).
  */
 
 interface NewsBody {
@@ -30,7 +27,8 @@ interface NewsItem {
   title: string;
   summary: string;
   banner: string | null;
-  startAt: string | null;
+  /** Época en segundos (epoch) — se formatea en la vista con formatDate. */
+  startAt: number | null;
   /** Chips de categoría (texto del seed legado; dokkaninfo no los publica). */
   category: string | null;
   tab: string | null;
@@ -55,47 +53,10 @@ interface NewsState {
 
 export const newsState = signal<NewsState>({ cache: null, refreshing: false, failed: false });
 
-const CACHE_KEY = 'dk.news.v3';
-const BODY_CACHE_KEY = 'dk.newsbodies.v3';
-const BODY_CACHE_MAX = 20;
 /** Páginas de /news que se descargan en cada refresco (9 noticias por página). */
 const REFRESH_PAGES = 4;
 
-/* ---------- Caché en la base de datos local (store `news`) ---------- */
-
-function readCacheLegacy(): NewsCache | null {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as NewsCache;
-    if (!Array.isArray(parsed?.news)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-async function readCache(): Promise<NewsCache | null> {
-  const inDb = await dbGet<NewsCache>(STORE_NEWS, 'index');
-  if (inDb && Array.isArray(inDb.news)) return inDb;
-  const legacy = readCacheLegacy();
-  if (legacy) void dbSet(STORE_NEWS, 'index', legacy); // migración (una vez)
-  return legacy;
-}
-
-function writeCacheLegacy(cache: NewsCache): void {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    /* almacenamiento lleno: se sigue sin caché persistente */
-  }
-}
-
-async function writeCache(cache: NewsCache): Promise<void> {
-  if (!(await dbSet(STORE_NEWS, 'index', cache))) writeCacheLegacy(cache);
-}
-
-/* ---------- Seed empaquetado (primera apertura offline) ---------- */
+/* ---------- Seed empaquetado (primera apertura) ---------- */
 
 interface SeedItem {
   id?: number;
@@ -110,16 +71,12 @@ interface SeedItem {
 
 let seedPromise: Promise<void> | null = null;
 
-/** Carga el seed solo si no hay nada que mostrar (primera apertura sin red). */
+/** Carga el seed solo si no hay nada que mostrar (primera apertura). */
 export function loadSeedIfEmpty(): Promise<void> {
   seedPromise ??= (async () => {
-    const cached = await readCache();
-    if (cached) {
-      newsState.value = { ...newsState.value, cache: cached };
-      return;
-    }
+    if (newsState.value.cache?.news.length) return;
     try {
-      const res = await fetch('/data/news.seed.json', { cache: 'no-cache' });
+      const res = await fetch('/data/news.seed.json');
       if (!res.ok) return;
       const seed = (await res.json()) as { news?: SeedItem[] };
       const news: NewsItem[] = (seed.news ?? []).map((n) => ({
@@ -127,7 +84,7 @@ export function loadSeedIfEmpty(): Promise<void> {
         title: n.title ?? '',
         summary: n.summary ?? '',
         banner: n.banner ?? null,
-        startAt: n.startAt ?? null,
+        startAt: parseEpoch(n.startAt),
         category: n.category ?? null,
         tab: n.tab ?? null,
         bodies: (n.bodies ?? []).map((b) => ({ id: b.id ?? 0, image: b.image ?? null, description: b.description ?? '' })),
@@ -135,9 +92,7 @@ export function loadSeedIfEmpty(): Promise<void> {
         source: 'seed' as const,
       }));
       if (news.length) {
-        const cache: NewsCache = { news, updatedAt: null };
-        newsState.value = { ...newsState.value, cache };
-        await writeCache(cache);
+        newsState.value = { ...newsState.value, cache: { news, updatedAt: null } };
       }
     } catch {
       /* sin seed: la vista muestra su estado vacío */
@@ -153,7 +108,7 @@ const toItem = (row: { id: number; title: string; summary: string; banner: strin
   title: row.title,
   summary: row.summary,
   banner: row.banner,
-  startAt: row.startAt ? new Date(row.startAt * 1000).toISOString() : null,
+  startAt: row.startAt,
   category: null,
   tab: null,
   bodies: [],
@@ -161,7 +116,7 @@ const toItem = (row: { id: number; title: string; summary: string; banner: strin
   source: 'dk' as const,
 });
 
-/** Descarga las primeras páginas del listado y actualiza la caché. */
+/** Descarga las primeras páginas del listado y actualiza el estado. */
 export async function refreshNews(): Promise<void> {
   const state = newsState.value;
   if (state.refreshing) return;
@@ -187,15 +142,12 @@ export async function refreshNews(): Promise<void> {
     }
     items.sort((a, b) => (a.startAt ?? '') < (b.startAt ?? '') ? 1 : -1);
     if (items.length) {
-      const cache: NewsCache = { news: items, updatedAt: Date.now() };
-      newsState.value = { cache, refreshing: false, failed: false };
-      await writeCache(cache);
+      newsState.value = { cache: { news: items, updatedAt: Date.now() }, refreshing: false, failed: false };
       return;
     }
     newsState.value = { ...newsState.value, refreshing: false };
   } catch (e) {
     // Respaldo dokkan.fyi (mismo datamine que la semilla; sin Cloudflare):
-    // anuncios con el cuerpo en línea, como el seed empaquetado.
     console.warn('[news] Listado dokkaninfo no disponible:', e instanceof Error ? e.message : String(e));
     try {
       const fyiItems = await fetchNewsFromFyi();
@@ -214,9 +166,7 @@ export async function refreshNews(): Promise<void> {
             source: 'fyi' as const,
           }))
           .sort((a, b) => (a.startAt ?? '') < (b.startAt ?? '') ? 1 : -1);
-        const cache: NewsCache = { news, updatedAt: Date.now() };
-        newsState.value = { cache, refreshing: false, failed: false };
-        await writeCache(cache);
+        newsState.value = { cache: { news, updatedAt: Date.now() }, refreshing: false, failed: false };
         return;
       }
       const hasContent = (newsState.value.cache?.news.length ?? 0) > 0;
@@ -228,56 +178,17 @@ export async function refreshNews(): Promise<void> {
   }
 }
 
-/* ---------- Cuerpo de la noticia (perezoso, cacheado) ---------- */
+/* ---------- Cuerpo de la noticia (perezoso, en memoria) ---------- */
 
 let bodyMem = new Map<number, string | null>();
-
-async function bodyCacheRead(): Promise<Record<string, string | null>> {
-  const inDb = await dbGet<Record<string, string | null>>(STORE_NEWS, 'bodies');
-  if (inDb && typeof inDb === 'object') return inDb;
-  let legacy: Record<string, string | null> = {};
-  try {
-    legacy = JSON.parse(localStorage.getItem(BODY_CACHE_KEY) ?? '{}') as Record<string, string | null>;
-  } catch {
-    legacy = {};
-  }
-  if (legacy && typeof legacy === 'object' && Object.keys(legacy).length) {
-    void dbSet(STORE_NEWS, 'bodies', legacy); // migración (una vez)
-  }
-  return legacy;
-}
-
-async function bodyCacheWrite(id: number, html: string | null): Promise<void> {
-  try {
-    const all = await bodyCacheRead();
-    all[String(id)] = html;
-    const keys = Object.keys(all);
-    if (keys.length > BODY_CACHE_MAX) {
-      keys.slice(0, keys.length - BODY_CACHE_MAX).forEach((k) => delete all[k]);
-    }
-    if (await dbSet(STORE_NEWS, 'bodies', all)) return;
-    try {
-      localStorage.setItem(BODY_CACHE_KEY, JSON.stringify(all));
-    } catch {
-      /* best-effort */
-    }
-  } catch {
-    /* best-effort */
-  }
-}
 
 /** Descarga (o recupera) el cuerpo de una noticia de dokkaninfo. */
 export async function fetchNewsBody(id: number): Promise<string | null> {
   if (bodyMem.has(id)) return bodyMem.get(id) ?? null;
-  const cached = (await bodyCacheRead())[String(id)];
-  if (typeof cached === 'string') {
-    bodyMem.set(id, cached);
-    return cached;
-  }
+
   const html = await fetchInfoText(`/news/${id}`);
   const body = extractNewsBody(html);
   bodyMem.set(id, body);
-  await bodyCacheWrite(id, body);
   return body;
 }
 

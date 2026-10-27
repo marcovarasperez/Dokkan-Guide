@@ -1,5 +1,5 @@
 import { newsStatusText } from '../model/news';
-import { formatDate } from '../model/format';
+import { formatDate, epochToISO } from '../model/format';
 import { useNewsController } from '../controller/newsController';
 import InfoImg from './InfoImg';
 
@@ -35,7 +35,7 @@ export default function NewsView() {
                     <div class="news-card__meta">
                       {n.tab && <span class="news-card__tab">{n.tab}</span>}
                       {n.category && <span class="news-card__cat">{n.category}</span>}
-                      <time datetime={n.startAt ?? undefined}>{formatDate(n.startAt)}</time>
+                      <time datetime={epochToISO(n.startAt) ?? undefined}>{formatDate(n.startAt)}</time>
                     </div>
                     <h3 class="news-card__title">{n.title}</h3>
                     {n.summary && <p class="news-card__summary">{n.summary}</p>}

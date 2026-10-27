@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import type { UnitClass, UnitRarity, UnitSummary, UnitType } from '../model/types';
 import { getUnits, getUpdatedAt, loadRepository } from '../model/repository';
-import { maybeCheckOnOpen, startAutoRefresh, syncState } from '../model/sync';
+import { checkOnOpen, startAutoRefresh, syncState } from '../model/sync';
 import { loadSeedIfEmpty } from '../model/news';
 
 /**
@@ -39,8 +39,29 @@ const normalizeText = (s: string): string =>
  * con fallback al estreno. Así un EZA/SEZA recién aplicado —la noticia del
  * día— encabeza la lista junto a su badge NUEVA; con la fecha de estreno
  * anterior, una unidad con EZA de hoy quedaba hundida en su fecha de 2024.
+ * Devuelve epoch seconds (number) para comparación numérica correcta.
  */
-const sortDate = (u: UnitSummary): string => u.releaseDates.latest ?? u.releaseDates.initial ?? '';
+const sortDate = (u: UnitSummary): number => u.releaseDates.latest ?? u.releaseDates.initial ?? -1;
+
+/** Caché de claves de orden para evitar recalcular en cada comparación. */
+const sortKeyCache = new Map<number, Record<string, number | string>>();
+
+function getSortKeys(u: UnitSummary): Record<string, number | string> {
+  const cached = sortKeyCache.get(u.id);
+  if (cached) return cached;
+
+  const keys = {
+    recent: sortDate(u),
+    name: u.name,
+    rarity: { N: 0, R: 1, SR: 2, SSR: 3, UR: 4, LR: 5 }[u.rarity],
+    hp: u.stats.hp.max,
+    atk: u.stats.atk.max,
+    def: u.stats.def.max,
+    cost: u.cost,
+  };
+  sortKeyCache.set(u.id, keys);
+  return keys;
+}
 
 /** Orden de rarezas (del más bajo al más alto), como en el juego. */
 const RARITY_INDEX: Record<UnitRarity, number> = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4, LR: 5 };
@@ -48,17 +69,17 @@ const RARITY_INDEX: Record<UnitRarity, number> = { N: 0, R: 1, SR: 2, SSR: 3, UR
 /** Comparadores de orden por criterio (sentido descendente por defecto). */
 const SORTERS: Record<SortKey, (a: UnitSummary, b: UnitSummary) => number> = {
   recent: (a, b) => {
-    const da = sortDate(a);
-    const db = sortDate(b);
-    if (da === db) return a.id - b.id; // desempate estable por id
-    return da < db ? -1 : 1;
+    const ka = getSortKeys(a).recent as number;
+    const kb = getSortKeys(b).recent as number;
+    if (ka === kb) return a.id - b.id;
+    return ka < kb ? -1 : 1;
   },
-  name: (a, b) => a.name.localeCompare(b.name, 'es'),
-  rarity: (a, b) => RARITY_INDEX[a.rarity] - RARITY_INDEX[b.rarity] || a.id - b.id,
-  hp: (a, b) => a.stats.hp.max - b.stats.hp.max || a.id - b.id,
-  atk: (a, b) => a.stats.atk.max - b.stats.atk.max || a.id - b.id,
-  def: (a, b) => a.stats.def.max - b.stats.def.max || a.id - b.id,
-  cost: (a, b) => a.cost - b.cost || a.id - b.id,
+  name: (a, b) => (getSortKeys(a).name as string).localeCompare(getSortKeys(b).name as string, 'es'),
+  rarity: (a, b) => (getSortKeys(a).rarity as number) - (getSortKeys(b).rarity as number) || a.id - b.id,
+  hp: (a, b) => (getSortKeys(a).hp as number) - (getSortKeys(b).hp as number) || a.id - b.id,
+  atk: (a, b) => (getSortKeys(a).atk as number) - (getSortKeys(b).atk as number) || a.id - b.id,
+  def: (a, b) => (getSortKeys(a).def as number) - (getSortKeys(b).def as number) || a.id - b.id,
+  cost: (a, b) => (getSortKeys(a).cost as number) - (getSortKeys(b).cost as number) || a.id - b.id,
 };
 
 export function useListController() {
@@ -74,7 +95,7 @@ export function useListController() {
     loadSeedIfEmpty().catch(() => {
       /* la vista de noticias maneja su estado vacío */
     });
-    maybeCheckOnOpen().catch(() => {
+    checkOnOpen().catch(() => {
       /* el chip de estado refleja el error */
     });
     // Refresco automático: la información se actualiza sola cada 5 minutos

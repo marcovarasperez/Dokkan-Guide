@@ -1,23 +1,27 @@
 import { signal } from '@preact/signals';
 import { fetchInfoText } from './http';
 import { decodeEntities } from './html';
-import { dbGet, dbSet, STORE_BANNERS } from './localDb';
 
 /**
  * Banners de dokkaninfo.com — la única fuente con archivo histórico:
  *  - Listado activo/finalizado: API JSON /api/banners?status=Active|Inactive&page=N.
  *  - Detalle por banner: /banners/{id} → atributo `v-bind:banner` con los
  *    personajes destacados (featuredCards con el id de personaje, que sirve
- *    para enlazar a las fichas en-app).
+ *    para enlazar a las fichas in-app).
  * Las imágenes son de dokkaninfo → en la UI se muestran con InfoImg (ORB).
+ * En memoria únicamente (sin persistencia local).
  */
 
 const INFO = 'https://dokkaninfo.com';
-// v1 explícito: si cambia el formato de las entradas, se invalidan las antiguas.
-const CACHE_PREFIX = 'dk.banners.v1.';
-// 6 h: la tienda de banners cambia a diario; el detalle es estático → 7 días.
-const TTL_MS = 6 * 60 * 60 * 1000;
-const DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// TTL en memoria: 15 minutos para listados, 30 minutos para detalles
+const LIST_TTL_MS = 15 * 60 * 1000;
+const DETAIL_TTL_MS = 30 * 60 * 1000;
+
+// Cachés en memoria
+const listActiveCache = { data: null as any, timestamp: 0 };
+const listEndedCache = { data: null as any, timestamp: 0 };
+const detailCaches = new Map<number, { data: any; timestamp: number }>();
 
 export interface ArchiveBanner {
   id: number;
@@ -53,39 +57,6 @@ export const archiveState = signal<Record<ArchiveKind, ArchiveListState>>({
   ended: emptyList(),
 });
 
-/* ---------- Caché en la base de datos local (store `banners`) ---------- */
-
-function cacheReadLegacy<T>(key: string): { ts: number; data: T } | null {
-  try {
-    const raw = localStorage.getItem(`${CACHE_PREFIX}${key}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { ts: number; data: T };
-    return typeof parsed?.ts === 'number' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function cacheRead<T>(key: string, ttl: number): Promise<T | null> {
-  const entry = await dbGet<{ ts: number; data: T }>(STORE_BANNERS, key);
-  if (entry) return Date.now() - entry.ts > ttl ? null : entry.data;
-  const legacy = cacheReadLegacy<T>(key); // caché previa en localStorage
-  if (!legacy) return null;
-  if (Date.now() - legacy.ts > ttl) return null;
-  void dbSet(STORE_BANNERS, key, legacy); // migración (una vez)
-  return legacy.data;
-}
-
-async function cacheWrite<T>(key: string, data: T): Promise<void> {
-  const entry = { ts: Date.now(), data };
-  if (await dbSet(STORE_BANNERS, key, entry)) return;
-  try {
-    localStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(entry));
-  } catch {
-    /* almacenamiento lleno: se sigue sin caché */
-  }
-}
-
 /* ---------- Listado activo / finalizado ---------- */
 
 interface RawArchiveBanner {
@@ -110,6 +81,14 @@ function normalizeArchive(b: RawArchiveBanner): ArchiveBanner {
   };
 }
 
+function getCache(kind: ArchiveKind): { data: any; timestamp: number } {
+  return kind === 'active' ? listActiveCache : listEndedCache;
+}
+
+function isCacheValid(timestamp: number, ttl: number): boolean {
+  return timestamp > 0 && Date.now() - timestamp < ttl;
+}
+
 export async function loadArchive(
   kind: ArchiveKind,
   opts: { append?: boolean; force?: boolean } = {},
@@ -117,11 +96,12 @@ export async function loadArchive(
   const cur = archiveState.value[kind];
   if (cur.status === 'loading') return;
 
+  const cache = getCache(kind);
+
   if (cur.status === 'idle') {
-    const cached = await cacheRead<ArchiveListState>(`list-${kind}`, TTL_MS);
-    if (cached && !opts.force) {
-      archiveState.value = { ...archiveState.value, [kind]: { ...cached, status: 'ok' } };
-      if (Date.now() - (cached.updatedAt ?? 0) < TTL_MS) return;
+    if (cache.data && !opts.force && isCacheValid(cache.timestamp, LIST_TTL_MS)) {
+      archiveState.value = { ...archiveState.value, [kind]: { ...cache.data, status: 'ok' } };
+      return;
     }
   }
 
@@ -143,7 +123,10 @@ export async function loadArchive(
       updatedAt: Date.now(),
     };
     archiveState.value = { ...archiveState.value, [kind]: merged };
-    if (!opts.append || page >= lastPage) void cacheWrite(`list-${kind}`, merged);
+    if (!opts.append || page >= lastPage) {
+      cache.data = merged;
+      cache.timestamp = Date.now();
+    }
   } catch {
     const now = archiveState.value[kind];
     archiveState.value = {
@@ -167,11 +150,12 @@ export async function loadArchiveAll(kind: ArchiveKind, opts: { force?: boolean 
   const cur = archiveState.value[kind];
   if (cur.status === 'loading') return;
 
+  const cache = getCache(kind);
+
   if (cur.status === 'idle' || opts.force) {
-    const cached = await cacheRead<ArchiveListState>(`list-${kind}`, TTL_MS);
-    if (cached && !opts.force) {
-      archiveState.value = { ...archiveState.value, [kind]: { ...cached, status: 'ok' } };
-      if (Date.now() - (cached.updatedAt ?? 0) < TTL_MS) return;
+    if (cache.data && !opts.force && isCacheValid(cache.timestamp, LIST_TTL_MS)) {
+      archiveState.value = { ...archiveState.value, [kind]: { ...cache.data, status: 'ok' } };
+      return;
     }
   }
 
@@ -190,7 +174,8 @@ export async function loadArchiveAll(kind: ArchiveKind, opts: { force?: boolean 
     }
     const merged: ArchiveListState = { status: 'ok', items: rows, page: lastPage, lastPage, updatedAt: Date.now() };
     archiveState.value = { ...archiveState.value, [kind]: merged };
-    void cacheWrite(`list-${kind}`, merged);
+    cache.data = merged;
+    cache.timestamp = Date.now();
   } catch {
     const now = archiveState.value[kind];
     archiveState.value = {
@@ -255,15 +240,16 @@ export async function loadBannerDetail(id: number): Promise<void> {
   const cur = bannerDetailState.value;
   if (cur.status === 'loading' || (cur.id === id && cur.status === 'ok')) return;
 
-  const cached = await cacheRead<BannerDetailInfo>(`detail-${id}`, DETAIL_TTL_MS);
+  const detailCache = detailCaches.get(id) ?? { data: null, timestamp: 0 };
+  detailCaches.set(id, detailCache);
 
-  // La lectura de la BD es asíncrona: si mientras tanto entró otro detalle
+  // La lectura de la caché es síncrona: si mientras tanto entró otro detalle
   // (o el mismo ya cargó), respetar ese estado en lugar de pisarlo.
   const after = bannerDetailState.value;
   if (after.status === 'loading' || (after.id === id && after.status === 'ok')) return;
 
-  if (cached) {
-    bannerDetailState.value = { status: 'ok', id, detail: cached };
+  if (detailCache.data && isCacheValid(detailCache.timestamp, DETAIL_TTL_MS)) {
+    bannerDetailState.value = { status: 'ok', id, detail: detailCache.data };
     return;
   }
   bannerDetailState.value = { status: 'loading', id, detail: null };
@@ -285,7 +271,8 @@ export async function loadBannerDetail(id: number): Promise<void> {
       unfeatured: toCardRefs(raw.unfeaturedCards),
     };
     bannerDetailState.value = { status: 'ok', id, detail };
-    void cacheWrite(`detail-${id}`, detail);
+    detailCache.data = detail;
+    detailCache.timestamp = Date.now();
   } catch {
     const now = bannerDetailState.value;
     bannerDetailState.value = { ...now, status: now.detail ? 'ok' : 'error' };

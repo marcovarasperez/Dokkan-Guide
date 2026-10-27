@@ -38,7 +38,7 @@ export function LoadMore({ page, lastPage, onMore }: { page: number; lastPage: n
   );
 }
 
-const isEventActive = (e: GameEvent): boolean => !e.endsAt || Date.parse(e.endsAt) > Date.now();
+const isEventActive = (e: GameEvent): boolean => !e.endsAt || e.endsAt * 1000 > Date.now();
 
 /** Icono de un drop: carta → thumb enlazada; objeto → miniatura de item. */
 function RewardChip({ drop }: { drop: DkEventStageDrop }) {

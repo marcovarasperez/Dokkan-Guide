@@ -64,7 +64,8 @@ export type View =
   | 'bannerDetail'
   | 'events'
   | 'baba'
-  | 'categories';
+  | 'categories'
+  | 'settings';
 
 /** Vista activa derivada de la ruta (el orden importa: lo más específico gana). */
 export const view = computed<View>(() => {
@@ -75,6 +76,7 @@ export const view = computed<View>(() => {
   if (route.value.startsWith('#/eventos') || route.value.startsWith('#/juego')) return 'events';
   if (route.value.startsWith('#/baba')) return 'baba';
   if (route.value.startsWith('#/categorias')) return 'categories';
+  if (route.value.startsWith('#/ajustes')) return 'settings';
   return detailId.value !== null ? 'detail' : 'list';
 });
 

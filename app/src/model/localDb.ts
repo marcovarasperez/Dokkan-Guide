@@ -28,6 +28,7 @@ const DB_VERSION = 2; // v2: + units/meta/fresh/news/events/banners
 
 export const STORE_DETAILS = 'details';
 export const STORE_UNITS = 'units';
+export const STORE_UNITS_LIST = 'units_list'; // caché del listado /cards con TTL
 export const STORE_META = 'meta';
 export const STORE_FRESH = 'fresh';
 export const STORE_NEWS = 'news';
@@ -37,6 +38,7 @@ export const STORE_BANNERS = 'banners';
 const ALL_STORES = [
   STORE_DETAILS,
   STORE_UNITS,
+  STORE_UNITS_LIST,
   STORE_META,
   STORE_FRESH,
   STORE_NEWS,

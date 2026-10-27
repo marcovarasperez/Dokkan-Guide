@@ -1,4 +1,4 @@
-import { formatDate } from '../model/format';
+import { formatDate, epochToISO } from '../model/format';
 import { useNewsDetailController } from '../controller/newsDetailController';
 
 /**
@@ -23,7 +23,7 @@ function timestampToText(el: Element): string {
   const raw =
     el.getAttribute('v-bind:timestamp') ?? el.getAttribute('timestamp') ?? '';
   const t = Number(raw.replace(/[^\d]/g, ''));
-  return t > 0 ? formatDate(new Date(t * 1000).toISOString()) : '';
+  return t > 0 ? formatDate(t) : '';
 }
 
 /** Sanea el HTML del artículo: sin scripts/handlers, solo formato + imágenes. */
@@ -124,7 +124,7 @@ export default function NewsDetail({ id }: { id: number }) {
         <div class="news-card__meta">
           {item.tab && <span class="news-card__tab">{item.tab}</span>}
           {item.category && <span class="news-card__cat">{item.category}</span>}
-          <time datetime={item.startAt ?? undefined}>{formatDate(item.startAt)}</time>
+          <time datetime={epochToISO(item.startAt) ?? undefined}>{formatDate(item.startAt)}</time>
         </div>
         <h2 class="news-article__title">{item.title}</h2>
 

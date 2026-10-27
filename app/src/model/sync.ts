@@ -1,7 +1,8 @@
 import { signal } from '@preact/signals';
 import type { SyncState, UnitSummary } from './types';
 import { fetchInfoText } from './http';
-import { parseCardsIndex, parseCardPage, rarityFromCode, typeFromElement } from './dinfo';
+import { parseCardsIndex, parseCardPage } from './dinfo';
+import { rarityFromCode, typeFromElement } from './adapter';
 import type { DkCardRow } from './dinfo';
 import { cacheDetail, fullFromCardPage, loadDropsIndex, loadZbattlesIndex, summaryFromCardPage } from './detail';
 import { refreshNews } from './news';
@@ -10,6 +11,9 @@ import { syncFromFyi } from './fyi';
 import {
   getUnits, applySyncResult, readSyncMeta, writeSyncMeta, repositoryReady,
 } from './repository';
+import { hashCardRow } from './hash';
+import { datePart } from './date';
+import { CHECK_INTERVAL_MS, AUTO_REFRESH_MS, MAX_FETCHES_PER_RUN } from './constants';
 
 /**
  * Servicio de sincronización incremental.
@@ -32,19 +36,6 @@ import {
  * y ≥2 minutos entre intentos. Fallos silenciosos: sin excepciones a pantalla.
  */
 
-/**
- * Intervalo mínimo entre comprobaciones automáticas (al abrir o al volver del
- * background). Reducido de 15 min a 2 min para que la app refleje cambios
- * rápidamente sin bombardear las fuentes.
- */
-const CHECK_INTERVAL_MS = 2 * 60 * 1000;
-/** Refresco automático: cada 5 minutos, con el mismo flujo que el botón. */
-export const AUTO_REFRESH_MS = 5 * 60 * 1000;
-/** Fichas descargadas como máximo por corrida (banda transportada).
- *  Subido de 12 a 50: en WiFi/4G el coste es mínimo y el catch-up es mucho
- *  más rápido (antes 50 cambios requerían 4+ ciclos = 20+ minutos). */
-const MAX_FETCHES_PER_RUN = 50;
-
 export const syncState = signal<SyncState>({
   phase: 'idle',
   message: '',
@@ -65,26 +56,8 @@ const idleState = (lastSuccessAt: number | null): SyncState => ({
 
 /** Hash estable de una fila del catálogo (FNV-1a sobre los campos usados). */
 function rowHash(r: DkCardRow): string {
-  const sig = [
-    r.id, r.name, r.rarity, r.element, r.lv_max, r.skill_lv_max, r.icon_id,
-    r.hp_init, r.hp_max, r.hp_hipo, r.atk_init, r.atk_max, r.atk_hipo,
-    r.def_init, r.def_max, r.def_hipo, r.open_at, r.eza, r.eza_open_at,
-    r.seza, r.seza_open_at,
-  ].join('|');
-  let h = 0x811c9dc5;
-  for (let i = 0; i < sig.length; i += 1) {
-    h ^= sig.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(36);
+  return hashCardRow(r);
 }
-
-/** Parte de fecha (YYYY-MM-DD, UTC) para comparar tiempos sin ruido horario. */
-const datePart = (v: string | number | null | undefined): string => {
-  if (v == null) return '';
-  const t = typeof v === 'number' ? v * 1000 : Date.parse(v);
-  return Number.isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10);
-};
 
 /** ¿La fila del catálogo difiere del resumen vigente? */
 function rowDiffers(s: UnitSummary, r: DkCardRow): boolean {
@@ -145,167 +118,219 @@ const isNewCandidate = (r: DkCardRow, known: Set<number>, catalogIds: Set<number
     !String(r.id).startsWith('9') &&
     (r.open_at ?? 0) < Date.now() / 1000
   );
-};
+}
 
+/** Resultado de la comparación de catálogo contra unidades conocidas. */
+interface CatalogDiff {
+  stateChanged: DkCardRow[];
+  changed: DkCardRow[];
+  added: DkCardRow[];
+}
+
+/** Categoriza las filas del catálogo según su estado respecto a lo conocido. */
+function categorizeCatalogRows(rows: DkCardRow[]): CatalogDiff {
+  const known = new Map(getUnits().map((u) => [u.id, u]));
+  const knownIds = new Set(known.keys());
+  const catalogIds = new Set(rows.map((r) => r.id));
+
+  const stateChanged: DkCardRow[] = [];
+  const changed: DkCardRow[] = [];
+  const added: DkCardRow[] = [];
+
+  for (const row of rows) {
+    const current = known.get(row.id);
+    if (current) {
+      if (stateChangeDiffers(current, row)) stateChanged.push(row);
+      else if (rowDiffers(current, row)) changed.push(row);
+    } else if (isNewCandidate(row, knownIds, catalogIds)) {
+      added.push(row);
+    }
+  }
+  return { stateChanged, changed, added };
+}
+
+/** Construye la cola de descarga priorizando: stateChanged > changed > added. */
+function buildFetchQueue(diff: CatalogDiff): { queue: DkCardRow[]; leftOver: number } {
+  const pendingTotal = diff.stateChanged.length + diff.changed.length + diff.added.length;
+  const queue = [...diff.stateChanged, ...diff.changed, ...diff.added].slice(0, MAX_FETCHES_PER_RUN);
+  const leftOver = pendingTotal - queue.length;
+  return { queue, leftOver };
+}
+
+/** Descarga y normaliza las fichas completas para la cola de unidades. */
+async function fetchAndNormalizeDetails(queue: DkCardRow[]): Promise<NormalizedUnit[]> {
+  const dropsIndex = await loadDropsIndex();
+  const zbIndex = await loadZbattlesIndex();
+  const normalized: NormalizedUnit[] = [];
+
+  for (const row of queue) {
+    try {
+      const page = parseCardPage(await fetchInfoText(`/cards/${row.id}`));
+      if (!page) continue;
+      const summary = summaryFromCardPage(row.id, page, {
+        hasEza: row.eza === 1,
+        hasSeza: row.seza === 1,
+        openAt: row.open_at,
+        ezaOpenAt: row.eza_open_at,
+        sezaOpenAt: row.seza_open_at,
+      });
+      normalized.push({ summary, detail: fullFromCardPage(page, dropsIndex, zbIndex), hash: rowHash(row) });
+    } catch {
+      /* unidad puntual: se reintenta en la próxima corrida */
+    }
+  }
+  return normalized;
+}
+
+interface NormalizedUnit {
+  summary: UnitSummary;
+  detail: ReturnType<typeof fullFromCardPage>;
+  hash: string;
+}
+
+/** Aplica resultados, cachea detalles y actualiza el estado de sync. */
+async function applyAndCacheResults(
+  normalized: NormalizedUnit[],
+  syncedAt: number,
+  leftOver: number,
+  failed: number
+): Promise<void> {
+  const counts = await applySyncResult({ normalized: normalized.map(n => ({ summary: n.summary, detail: n.detail, hash: n.hash })), removedIds: [], syncedAt });
+  await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
+
+  for (const rec of normalized) cacheDetail(rec.summary.id, rec.hash, rec.detail);
+
+  syncState.value = {
+    phase: 'updated',
+    message:
+      `+${counts.newUnits} nuevas, ${counts.changedUnits} modificadas` +
+      (failed > 0 ? ` · ${failed} sin descargar` : '') +
+      (leftOver > 0 ? ` · quedan ${leftOver} pendientes` : ''),
+    lastSuccessAt: syncedAt,
+    newUnits: counts.newUnits,
+    changedUnits: counts.changedUnits,
+    freshUnitIds: counts.freshUnitIds,
+  };
+  void refreshNews();
+}
+
+/** Marca el estado como error con mensaje amable. */
+function setErrorState(detail: string): void {
+  const msg = friendlySyncMessage(detail);
+  console.error('[sync] Fallo al comprobar actualizaciones:', detail);
+  syncState.value = { ...syncState.value, phase: 'error', message: msg };
+}
+
+/** Intenta sincronizar desde el feed datamine (JSON propio). */
+async function tryDatamineSync(): Promise<boolean> {
+  if (!datamineEnabled()) return false;
+
+  try {
+    const dm = await syncFromDatamine();
+    if (dm.newUnits + dm.changedUnits === 0) return false;
+
+    const syncedAt = Date.now();
+    await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
+    syncState.value = {
+      phase: 'updated',
+      message: `+${dm.newUnits} nuevas, ${dm.changedUnits} modificadas (datos propios)`,
+      lastSuccessAt: syncedAt,
+      newUnits: dm.newUnits,
+      changedUnits: dm.changedUnits,
+      freshUnitIds: dm.freshUnitIds,
+    };
+    void refreshNews();
+    return true;
+  } catch (e) {
+    console.warn('[sync] Feed datamine no disponible:', e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
+/** Intenta sincronizar desde dokkan.fyi (fuente primaria). */
+async function tryFyiSync(): Promise<{ success: boolean; fyiOk: boolean }> {
+  try {
+    await repositoryReady();
+    const fb = await syncFromFyi();
+    const syncedAt = Date.now();
+    await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
+    const total = fb.newUnits + fb.changedUnits;
+    syncState.value =
+      total > 0
+        ? {
+            phase: 'updated',
+            message: `+${fb.newUnits} nuevas, ${fb.changedUnits} modificadas`,
+            lastSuccessAt: syncedAt,
+            newUnits: fb.newUnits,
+            changedUnits: fb.changedUnits,
+            freshUnitIds: fb.freshUnitIds,
+          }
+        : { ...idleState(syncedAt), phase: 'up-to-date', message: 'Al día' };
+    void refreshNews();
+    return { success: true, fyiOk: true };
+  } catch (e) {
+    console.warn('[sync] dokkan.fyi no disponible:', e instanceof Error ? e.message : String(e));
+    return { success: false, fyiOk: false };
+  }
+}
+
+/** Intenta sincronizar desde dokkaninfo (respaldo). */
+async function tryDokkaninfoSync(fyiOk: boolean): Promise<DkCardRow[] | null> {
+  let rows: DkCardRow[] | null = null;
+  try {
+    const parsed = parseCardsIndex(await fetchInfoText('/cards'));
+    rows = parsed.length ? parsed : null;
+  } catch (e) {
+    console.warn('[sync] Catálogo dokkaninfo no disponible:', e instanceof Error ? e.message : String(e));
+  }
+
+  if (!rows) {
+    if (!fyiOk) throw new Error('Ninguna fuente de datos disponible');
+  }
+  return rows;
+}
+
+/** Procesa el catálogo: compara, prioriza, descarga y aplica. */
+async function processCatalog(rows: DkCardRow[]): Promise<void> {
+  const diff = categorizeCatalogRows(rows);
+  const { queue, leftOver } = buildFetchQueue(diff);
+
+  if (queue.length === 0) {
+    const syncedAt = Date.now();
+    await applySyncResult({ normalized: [], removedIds: [], syncedAt });
+    await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
+    syncState.value = { ...idleState(syncedAt), phase: 'up-to-date', message: 'Al día' };
+    void refreshNews();
+    return;
+  }
+
+  const normalized = await fetchAndNormalizeDetails(queue);
+  const syncedAt = Date.now();
+  const failed = queue.length - normalized.length;
+  await applyAndCacheResults(normalized, syncedAt, leftOver, failed);
+}
+
+/** Función principal de sincronización (una corrida completa). */
 async function syncOnce(): Promise<void> {
   syncState.value = { ...syncState.value, phase: 'checking', message: 'Comprobando…' };
 
   // 1) Feed datamine (JSON propio publicado): primario cuando está configurado
   //    y trae cambios — así la actualización no depende de dokkaninfo (sin 403).
   //    Las noticias siguen refrescándose desde dokkaninfo (fallos silenciosos).
-  if (datamineEnabled()) {
-    try {
-      const dm = await syncFromDatamine();
-      if (dm.newUnits + dm.changedUnits > 0) {
-        const syncedAt = Date.now();
-        await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
-        syncState.value = {
-          phase: 'updated',
-          message: `+${dm.newUnits} nuevas, ${dm.changedUnits} modificadas (datos propios)`,
-          lastSuccessAt: syncedAt,
-          newUnits: dm.newUnits,
-          changedUnits: dm.changedUnits,
-          freshUnitIds: dm.freshUnitIds,
-        };
-        void refreshNews();
-        return;
-      }
-      // Sin cambios en el feed: se continúa con el flujo principal.
-    } catch (e) {
-      // Feed caído/incompleto: se registra y se cae al flujo habitual.
-      console.warn('[sync] Feed datamine no disponible:', e instanceof Error ? e.message : String(e));
-    }
-  }
+  if (await tryDatamineSync()) return;
 
   // 2) Catálogo: dokkan.fyi es el primario (sin Cloudflare → nunca 403).
   //    Si fyi falla, se intenta dokkaninfo como respaldo (con reintentos).
   try {
-    await repositoryReady();
+    const { fyiOk } = await tryFyiSync();
+    if (fyiOk) return;
 
-    // —— Intento primario: dokkan.fyi (sin Cloudflare, fiable) ——
-    let fyiOk = false;
-    try {
-      const fb = await syncFromFyi();
-      fyiOk = true;
-      const syncedAt = Date.now();
-      await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
-      const total = fb.newUnits + fb.changedUnits;
-      syncState.value =
-        total > 0
-          ? {
-              phase: 'updated',
-              message: `+${fb.newUnits} nuevas, ${fb.changedUnits} modificadas`,
-              lastSuccessAt: syncedAt,
-              newUnits: fb.newUnits,
-              changedUnits: fb.changedUnits,
-              freshUnitIds: fb.freshUnitIds,
-            }
-          : { ...idleState(syncedAt), phase: 'up-to-date', message: 'Al día' };
-      // Refresco de noticias dentro del mismo ciclo (fallos silenciosos).
-      void refreshNews();
-      return;
-    } catch (e) {
-      console.warn('[sync] dokkan.fyi no disponible:', e instanceof Error ? e.message : String(e));
-    }
-
-    // —— Respaldo: dokkaninfo (puede dar 403 de Cloudflare, con reintentos) ——
-    let rows: DkCardRow[] | null = null;
-    try {
-      const parsed = parseCardsIndex(await fetchInfoText('/cards'));
-      rows = parsed.length ? parsed : null;
-    } catch (e) {
-      console.warn('[sync] Catálogo dokkaninfo no disponible:', e instanceof Error ? e.message : String(e));
-    }
-
-    if (!rows) {
-      // Ambas fuentes fallaron: si fyi dio datos parciales arriba y no se
-      // aplicaron (por la salvaguarda anti-incompleto), el error ya está
-      // en consola. Se muestra la caché.
-      if (!fyiOk) throw new Error('Ninguna fuente de datos disponible');
-      return;
-    }
-
-    const known = new Map(getUnits().map((u) => [u.id, u]));
-    const knownIds = new Set(known.keys());
-    // Ids de TODAS las filas del catálogo: descartan variantes sin página.
-    const catalogIds = new Set(rows.map((r) => r.id));
-
-    const changed: DkCardRow[] = [];
-    const stateChanged: DkCardRow[] = [];
-    const added: DkCardRow[] = [];
-    for (const row of rows) {
-      const current = known.get(row.id);
-      if (current) {
-        // Un EZA/SEZA nuevo o con fecha nueva es prioridad: su ficha se
-        // descarga primero (el badge NUEVA lo decide la fecha de novedad).
-        if (stateChangeDiffers(current, row)) stateChanged.push(row);
-        else if (rowDiffers(current, row)) changed.push(row);
-      } else if (isNewCandidate(row, knownIds, catalogIds)) {
-        added.push(row);
-      }
-    }
-
-    // Prioridad: cambios de estado (EZA/SEZA recién aplicados) > resto de
-    // actualizaciones > altas pendientes: una novedad real no debe esperar
-    // detrás de la cola de unidades nuevas por catalogar.
-    const pendingTotal = stateChanged.length + changed.length + added.length;
-    const queue = [...stateChanged, ...changed, ...added].slice(0, MAX_FETCHES_PER_RUN);
-    const leftOver = pendingTotal - queue.length;
-    if (queue.length === 0) {
-      const syncedAt = Date.now();
-      await applySyncResult({ normalized: [], removedIds: [], syncedAt });
-      await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
-      syncState.value = { ...idleState(syncedAt), phase: 'up-to-date', message: 'Al día' };
-      void refreshNews();
-      return;
-    }
-
-    const dropsIndex = await loadDropsIndex();
-    const zbIndex = await loadZbattlesIndex();
-    const normalized = [];
-    for (const row of queue) {
-      try {
-        const page = parseCardPage(await fetchInfoText(`/cards/${row.id}`));
-        if (!page) continue;
-        const summary = summaryFromCardPage(row.id, page, {
-          hasEza: row.eza === 1,
-          hasSeza: row.seza === 1,
-          openAt: row.open_at,
-          ezaOpenAt: row.eza_open_at,
-          sezaOpenAt: row.seza_open_at,
-        });
-        normalized.push({ summary, detail: fullFromCardPage(page, dropsIndex, zbIndex), hash: rowHash(row) });
-      } catch {
-        /* unidad puntual: se reintenta en la próxima corrida */
-      }
-    }
-
-    const syncedAt = Date.now();
-    const counts = await applySyncResult({ normalized, removedIds: [], syncedAt });
-    await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
-    // Las fichas descargadas pasan a la base de datos local (store `details`):
-    // la vista las muestra sin volver a pedirlas a la red (y offline).
-    for (const rec of normalized) cacheDetail(rec.summary.id, rec.hash, rec.detail);
-    const failed = queue.length - normalized.length;
-    syncState.value = {
-      phase: 'updated',
-      message:
-        `+${counts.newUnits} nuevas, ${counts.changedUnits} modificadas` +
-        (failed > 0 ? ` · ${failed} sin descargar` : '') +
-        (leftOver > 0 ? ` · quedan ${leftOver} pendientes` : ''),
-      lastSuccessAt: syncedAt,
-      newUnits: counts.newUnits,
-      changedUnits: counts.changedUnits,
-      freshUnitIds: counts.freshUnitIds,
-    };
-    // Refresco de noticias dentro del mismo ciclo (fallos silenciosos).
-    void refreshNews();
+    // 3) Respaldo: dokkaninfo (puede dar 403 de Cloudflare, con reintentos).
+    const rows = await tryDokkaninfoSync(fyiOk);
+    if (rows) await processCatalog(rows);
   } catch (e) {
-    // Fallo real (red/HTTP en ambas fuentes): se registra en consola y el chip
-    // lo muestra con mensaje amable (nunca el crudo "Error HTTP 403").
     const detail = e instanceof Error ? e.message : String(e);
-    console.error('[sync] Fallo al comprobar actualizaciones:', detail);
-    syncState.value = { ...syncState.value, phase: 'error', message: friendlySyncMessage(detail) };
+    setErrorState(detail);
   }
 }
 
@@ -318,7 +343,15 @@ function friendlySyncMessage(detail: string): string {
   return 'Sin conexión — mostrando datos de la caché';
 }
 
-/** ¿Corresponde comprobar ahora? (1 intento por apertura, ≥15 min). */
+/** Comprueba actualizaciones al abrir la app (siempre, sin throttle). */
+export async function checkOnOpen(): Promise<void> {
+  const meta = await readSyncMeta();
+  await writeSyncMeta({ ...meta, lastAttemptAt: Date.now() });
+  await syncOnce();
+}
+
+/** Comprueba actualizaciones con throttle (1 intento por apertura, ≥2 min).
+ *  Se mantiene por compatibilidad pero ya no se usa en el arranque. */
 export async function maybeCheckOnOpen(): Promise<void> {
   const meta = await readSyncMeta();
   const last = meta.lastAttemptAt ?? 0;
@@ -326,11 +359,10 @@ export async function maybeCheckOnOpen(): Promise<void> {
     syncState.value = idleState(meta.lastSuccessAt);
     return;
   }
-  await writeSyncMeta({ ...meta, lastAttemptAt: Date.now() });
-  await syncOnce();
+  await checkOnOpen();
 }
 
-/** Actualización manual (botón de la barra de estado): sin throttle de15 min,
+/** Actualización manual (botón de la barra de estado): sin throttle,
  *  pero protegida contra pulsos repetidos mientras hay una corrida en curso. */
 let refreshInFlight = false;
 export async function manualRefresh(): Promise<void> {

@@ -13,7 +13,7 @@ import { LoadMore, StatusBlock } from './gameShared';
  */
 
 const fmtEpoch = (sec: number): string =>
-  sec ? formatDate(new Date(sec * 1000).toISOString()) : '—';
+  sec ? formatDate(sec) : '—';
 
 function archiveStatus(b: ArchiveBanner): 'active' | 'upcoming' | 'ended' {
   const now = Date.now() / 1000;

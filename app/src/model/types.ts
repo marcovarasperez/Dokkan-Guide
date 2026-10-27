@@ -16,10 +16,11 @@ export interface SkillText {
 }
 
 interface ReleaseDates {
-  initial: string | null;
-  eza: string | null;
-  seza: string | null;
-  latest: string | null;
+  /** Época en segundos (epoch) — se formatea en la vista con formatDate. */
+  initial: number | null;
+  eza: number | null;
+  seza: number | null;
+  latest: number | null;
   latestType: string | null; // 'initial' | 'eza' | 'seza' | ...
 }
 

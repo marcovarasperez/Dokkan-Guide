@@ -526,7 +526,7 @@ export function recommendHp(
   const affinity = { type: summary.type, skill: affSkill, points: 5 };
 
   // 1) Guía curated (autor citado, edición manual en hidden_potential.json).
-  const ezaLive = !!summary.releaseDates.eza && Date.parse(summary.releaseDates.eza) <= Date.now();
+  const ezaLive = !!summary.releaseDates.eza && (summary.releaseDates.eza * 1000) <= Date.now();
   const wantVariant = ezaLive ? 'eza' : 'base';
   const curated =
     seed?.entries.find((e) => e.unitId === summary.id && (e.variant ?? 'base') === wantVariant) ??

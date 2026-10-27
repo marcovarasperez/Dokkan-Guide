@@ -59,8 +59,8 @@ export default function BannerDetail({ id, units }: { id: number; units: UnitSum
             {detail.image && <InfoImg url={detail.image} alt={detail.name} cls="bdetail__img" />}
             <div class="bdetail__meta">
               <span class="banner-card__dates">
-                {detail.startsAt ? formatDate(new Date(detail.startsAt * 1000).toISOString()) : '…'} →{' '}
-                {detail.endsAt ? formatDate(new Date(detail.endsAt * 1000).toISOString()) : '…'}
+                {detail.startsAt ? formatDate(detail.startsAt) : '…'} →{' '}
+                {detail.endsAt ? formatDate(detail.endsAt) : '…'}
               </span>
             </div>
             <h2 class="bdetail__title">{detail.name}</h2>

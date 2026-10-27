@@ -19,6 +19,11 @@ const CLASS_INDEX: Record<UnitClass, number> = { Super: 1, Extreme: 2 };
 /** Índices de rareza para los marcos: N=1 … LR=5. */
 const RARITY_INDEX: Record<UnitRarity, number> = { N: 1, R: 2, SR: 3, SSR: 3, UR: 4, LR: 5 };
 
+/** Orden de tipos según `element` de dokkaninfo (dígito 2). */
+const TYPE_ORDER: UnitType[] = ['AGL', 'TEQ', 'INT', 'STR', 'PHY'];
+/** Orden de rarezas según código numérico de dokkaninfo. */
+const RARITY_ORDER: UnitRarity[] = ['N', 'R', 'SR', 'SSR', 'UR', 'LR'];
+
 export const TYPE_COLORS: Record<UnitType, string> = {
   AGL: '#1976d2',
   TEQ: '#388e3c',
@@ -26,6 +31,28 @@ export const TYPE_COLORS: Record<UnitType, string> = {
   STR: '#d32f2f',
   PHY: '#f9a825',
 };
+
+/**
+ * Convierte el `element` numérico de dokkaninfo (p.ej. "10", "21") a tipo.
+ * Dígito 2 (unidades): 0=AGL, 1=TEQ, 2=INT, 3=STR, 4=PHY.
+ */
+export function typeFromElement(element: string | null | undefined): UnitType {
+  const digit = Number(String(element ?? '0').slice(-1));
+  return TYPE_ORDER[digit] ?? 'AGL';
+}
+
+/**
+ * Convierte el `element` numérico de dokkaninfo a clase.
+ * Dígito 1 (decenas): 1=Super, 2=Extreme (0 → 'Super' por defecto).
+ */
+export function classFromElement(element: string | null | undefined): UnitClass {
+  return Number(String(element ?? '0')[0]) === 2 ? 'Extreme' : 'Super';
+}
+
+/** Convierte código numérico de rareza (0-5) a etiqueta. */
+export function rarityFromCode(code: number | null | undefined): UnitRarity {
+  return RARITY_ORDER[code ?? 3] ?? 'SSR';
+}
 
 /** Marco de la tarjeta (fondo con borde según tipo y rareza). */
 export function frameUrl(type: UnitType, rarity: UnitRarity): string {
@@ -56,4 +83,15 @@ export function typeIconUrl(type: UnitType, unitClass: UnitClass): string {
 /** Icono de rareza (abajo a la izquierda de la tarjeta). */
 export function rarityIconUrl(rarity: UnitRarity): string {
   return `${CDN}/layout/en/image/cha_rare_sm_${rarity.toLowerCase()}.png`;
+}
+
+/**
+ * Miniatura de una medalla de despertar (`AwakeningItem`) — mismo patrón que
+ * las otras URLs de assets; los thumbnails responden 200 en el
+ * assets CDN de dokkaninfo.
+ */
+export function awakeningMedalImg(itemId: number | null | undefined): string | null {
+  if (!itemId) return null;
+  const p5 = String(itemId).padStart(5, '0');
+  return `${CDN}/item/awaken/en/thumb/thumb_awaken_items_${p5}/thumb_awaken_items_${p5}.png`;
 }

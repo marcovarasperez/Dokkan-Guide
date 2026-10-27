@@ -5,6 +5,7 @@ import { decodeEntities } from './html';
 import { parseEventDetail, parseEventList, parseMissions } from './dinfo';
 import type { DkEventDetail, DkMissionCategory } from './dinfo';
 import { dbGet, dbSet, STORE_EVENTS } from './localDb';
+import { INFO_CDN } from './constants';
 
 /**
  * Contenido del juego (sección Eventos, con sub-pestañas) y Tienda de Baba.
@@ -21,8 +22,6 @@ import { dbGet, dbSet, STORE_EVENTS } from './localDb';
  *   y queda como respaldo) y refresco manual por sección; los fallos se
  *   muestran sin romper la vista.
  */
-
-const INFO_CDN = 'https://dokkaninfo.com';
 
 /** Sub-pestañas de la vista Eventos. */
 export type EventTab = 'events' | 'quest' | 'dbstory' | 'zbattles' | 'wt' | 'missions';
@@ -47,8 +46,9 @@ export interface GameEvent {
   type: string;
   name: string;
   image: string | null;
-  startsAt: string | null;
-  endsAt: string | null;
+  /** Época en segundos (epoch) — se formatea en la vista con formatDate. */
+  startsAt: number | null;
+  endsAt: number | null;
   /** Z-Battles: carta objetivo del EZA (el thumb enlaza a la ficha). */
   unit: { id: number; name: string; thumbnailId: number } | null;
 }
@@ -209,8 +209,7 @@ async function loadList<T>(
 
 /* ---------- Eventos (dokkaninfo.com) ---------- */
 
-const isoOf = (t: number | null): string | null => (t ? new Date(t * 1000).toISOString() : null);
-const isActive = (e: GameEvent): boolean => !e.endsAt || Date.parse(e.endsAt) > Date.now();
+const isActive = (e: GameEvent): boolean => !e.endsAt || e.endsAt * 1000 > Date.now();
 
 /** Activo primero; después por fecha de inicio desc; desempate por id desc. */
 const compareEvents = (a: GameEvent, b: GameEvent): number => {
@@ -233,8 +232,8 @@ async function fetchEventList(type: string): Promise<GameEvent[]> {
     type,
     name: e.name ?? '',
     image: e.image,
-    startsAt: isoOf(e.startsAt),
-    endsAt: isoOf(e.endsAt),
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
     unit: null,
   }));
 }

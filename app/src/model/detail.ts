@@ -3,14 +3,16 @@ import { fetchInfoText } from './http';
 import { getHashes } from './repository';
 import { dbGet, dbSet, STORE_DETAILS } from './localDb';
 import {
-  awakeningMedalImg,
-  classFromElement,
-  dkTime,
   parseCardPage,
   parseEzaSkills,
+} from './dinfo';
+import { parseEpoch } from './date';
+import {
+  awakeningMedalImg,
+  classFromElement,
   rarityFromCode,
   typeFromElement,
-} from './dinfo';
+} from './adapter';
 import type { DkCard, DkCardPage, DkEzaMedal, DkSuperAttack } from './dinfo';
 
 /**
@@ -90,6 +92,18 @@ export interface AcquireEzaMedal {
   image: string | null;
 }
 
+/** Recompensa de Torneo Mundial (World Tournament). */
+export interface AcquireTournamentReward {
+  /** Puntos necesarios para obtener la recompensa. */
+  points: number;
+  /** Nombre de la recompensa (p. ej. la propia carta). */
+  name: string;
+  /** Imagen de la recompensa (thumbnail de la carta). */
+  image: string | null;
+  /** ID del torneo (para deep-link a eventos si se desea). */
+  tournamentId: number | null;
+}
+
 interface Acquire {
   drops: AcquireDrop[];
   banners: AcquireBanner[];
@@ -101,6 +115,8 @@ interface Acquire {
   ezaMedals: AcquireEzaMedal[];
   /** Medallas para subir el SEZA («Super EZA»), separadas de las del EZA. */
   sezaMedals: AcquireEzaMedal[];
+  /** Recompensas de Torneo Mundial donde se obtiene esta unidad. */
+  tournamentRewards: AcquireTournamentReward[];
 }
 
 /** Miniatura de unidad para listas de apoyo (líderes 200%, partners, formas). */
@@ -130,11 +146,11 @@ export interface UnitFull {
   ezaStep: number | null;
   sezaStep: number | null;
   /**
-   * Fechas de EZA/SEZA de ESTA carta (ISO, null si no tiene): las formas
+   * Fechas de EZA/SEZA de ESTA carta (epoch seconds, null si no tiene): las formas
    * transformadas no están en el índice del listado, así que sus fechas
    * salen de su propia ficha y deciden cuál es su estado vigente.
    */
-  releaseDates: { eza: string | null; seza: string | null };
+  releaseDates: { eza: number | null; seza: number | null };
   /** Ganancias absolutas de Hidden Potential (columna +100% = máx + gain). */
   hipoGains: { hp: number; atk: number; def: number } | null;
   /** Tablero de potential: fija el bonus plano del "+55%" (como dokkaninfo). */
@@ -273,7 +289,6 @@ const statsFromCard = (c: DkCard): Stats => ({
   },
 });
 
-const iso = (t: number | null): string | null => (t ? new Date(t * 1000).toISOString() : null);
 
 /** Superataque de la fuente → entrada de la ficha (compartida por base y estados). */
 const saEntry = (sa: DkSuperAttack): SaEntry => ({
@@ -299,7 +314,7 @@ export function summaryFromCardPage(
   },
 ): UnitSummary {
   const c = page.card;
-  const openAt = opts?.openAt ?? dkTime(c.open_at);
+  const openAt = opts?.openAt ?? parseEpoch(c.open_at);
   const ezaOpenAt = opts?.ezaOpenAt ?? page.ezaOpenAt;
   const sezaOpenAt = opts?.sezaOpenAt ?? page.sezaOpenAt;
   const hasEza = opts?.hasEza ?? (ezaOpenAt !== null || page.ezaBattles.length > 0);
@@ -337,10 +352,10 @@ export function summaryFromCardPage(
     hasEza,
     hasSeza,
     releaseDates: {
-      initial: iso(openAt),
-      eza: iso(ezaOpenAt),
-      seza: iso(sezaOpenAt),
-      latest: latest ? iso(latest[1]) : null,
+      initial: openAt,
+      eza: ezaOpenAt,
+      seza: sezaOpenAt,
+      latest: latest ? latest[1] : null,
       latestType: latest ? latest[0] : null,
     },
     stats: statsFromCard(c),
@@ -383,7 +398,7 @@ export function fullFromCardPage(
     maxSaLevel: page.card.skill_lv_max ?? null,
     ezaStep: page.ezaStep,
     sezaStep: page.sezaStep,
-    releaseDates: { eza: iso(page.ezaOpenAt), seza: iso(page.sezaOpenAt) },
+    releaseDates: { eza: page.ezaOpenAt, seza: page.sezaOpenAt },
     hipoGains: {
       hp: page.hipo.hp || 0,
       atk: page.hipo.atk || 0,
@@ -434,6 +449,12 @@ export function fullFromCardPage(
       ezaEvents: resolveZbattleEvents(page, zbIndex),
       ezaMedals: withMedalImages(page.ezaMedals),
       sezaMedals: withMedalImages(page.sezaMedals),
+      tournamentRewards: (page.tournamentRewards ?? []).map((r) => ({
+        points: r.points,
+        name: r.name,
+        image: r.image,
+        tournamentId: r.tournamentId,
+      })),
     },
     anim: page.anim === true,
   };

@@ -29,9 +29,6 @@ export default function Header({ view }: { view: View }) {
             Personajes
           </a>
           <a class={cls(onBanners)} href="#/banners" aria-current={cur(onBanners)}>
-                      Banners
-                    </a>
-          <a class={cls(onBanners)} href="#/banners" aria-current={cur(onBanners)}>
             Banners
           </a>
           <a class={cls(view === 'events')} href="#/eventos" aria-current={cur(view === 'events')}>
@@ -42,6 +39,9 @@ export default function Header({ view }: { view: View }) {
           </a>
           <a class={cls(view === 'news')} href="#/noticias" aria-current={cur(view === 'news')}>
             Noticias
+          </a>
+          <a class={cls(view === 'settings')} href="#/ajustes" aria-current={cur(view === 'settings')}>
+            Ajustes
           </a>
         </nav>
       </div>

@@ -121,8 +121,8 @@ export default function BabaView() {
                       {n(c.price)} {c.premium ? '· Dragon Stones' : '· Pts. de Baba'}
                     </span>
                     <span class="baba-chest__dates">
-                      {c.startsAt ? formatDate(new Date(c.startsAt * 1000).toISOString()) : ''} →{' '}
-                      {c.endsAt ? formatDate(new Date(c.endsAt * 1000).toISOString()) : ''}
+                      {c.startsAt ? formatDate(c.startsAt) : ''} →{' '}
+                      {c.endsAt ? formatDate(c.endsAt) : ''}
                     </span>
                     {!c.buyable && <span class="baba-chest__off">No disponible</span>}
                   </article>

@@ -1,5 +1,8 @@
 import { decodeEntities } from './html';
-import type { SkillText, UnitClass, UnitRarity, UnitType } from './types';
+import type { SkillText } from './types';
+import { rarityFromCode } from './adapter';
+import { parseEpoch } from './date';
+import { INFO_CDN, INFO_ASSET, CDN_ASSET } from './constants';
 
 /**
  * Primitivas de dokkaninfo.com: la única fuente viva de la app (Fase 9).
@@ -16,10 +19,7 @@ import type { SkillText, UnitClass, UnitRarity, UnitType } from './types';
  *  - `rarity` numérica: 0=N 1=R 2=SR 3=SSR 4=UR 5=LR.
  */
 
-export const INFO_CDN = 'https://dokkaninfo.com';
-const INFO_ASSET = `${INFO_CDN}/assets/global/en`;
 /** CDN de assets del juego (thumbs, marcos… y los "listbutton" de eventos). */
-const CDN_ASSET = 'https://cdn.dokkan.fyi/assets/en';
 
 /* ------------------------------------------------------------------ *
  *  v-bind extraction
@@ -39,26 +39,6 @@ function extractVBind<T>(html: string, name: string): T | null {
   } catch {
     return null;
   }
-}
-
-/* ------------------------------------------------------------------ *
- *  Mapas element / rarity
- * ------------------------------------------------------------------ */
-
-const TYPE_ORDER: UnitType[] = ['AGL', 'TEQ', 'INT', 'STR', 'PHY'];
-const RARITY_ORDER: UnitRarity[] = ['N', 'R', 'SR', 'SSR', 'UR', 'LR'];
-
-export function typeFromElement(element: string | null | undefined): UnitType {
-  const digit = Number(String(element ?? '0').slice(-1));
-  return TYPE_ORDER[digit] ?? 'AGL';
-}
-
-export function classFromElement(element: string | null | undefined): UnitClass {
-  return Number(String(element ?? '0')[0]) === 2 ? 'Extreme' : 'Super';
-}
-
-export function rarityFromCode(code: number | null | undefined): UnitRarity {
-  return RARITY_ORDER[code ?? 3] ?? 'SSR';
 }
 
 /* ------------------------------------------------------------------ *
@@ -137,33 +117,6 @@ function itemImg(type: string, item: { id?: number | null }): string | null {
     default:
       return null; // Card (→ ficha in-app), EventkagiItem, TrainingField, SupportFilm…
   }
-}
-
-/* ------------------------------------------------------------------ *
- *  Tiempos: epoch s | 'YYYY-MM-DD HH:MM:SS' | { open_at } | null
- * ------------------------------------------------------------------ */
-
-/** Sentinelas de "sin fecha" (>= 2038-01-19) que usa la fuente. */
-const TIME_SENTINEL = 2_145_000_000;
-
-export function dkTime(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value === 'number') {
-    return value > 0 && value < TIME_SENTINEL ? Math.round(value) : null;
-  }
-  if (typeof value === 'string') {
-    if (!value || /^\s*$/.test(value)) return null;
-    // 'YYYY-MM-DD HH:MM:SS' (UTC) o ISO con Z.
-    const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? `${value.replace(' ', 'T')}Z` : value;
-    const t = Date.parse(iso);
-    if (Number.isNaN(t)) return null;
-    const s = Math.round(t / 1000);
-    return s < TIME_SENTINEL ? s : null;
-  }
-  if (typeof value === 'object') {
-    return dkTime((value as { open_at?: unknown }).open_at);
-  }
-  return null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -261,17 +214,6 @@ export interface DkEzaMedal {
   itemId: number;
 }
 
-/**
- * Miniatura de una medalla de despertar (`AwakeningItem`) — mismo patrón que
- * `itemImg` (recompensas de eventos); los thumbnails responden 200 en el
- * assets CDN de dokkaninfo.
- */
-export function awakeningMedalImg(itemId: number | null | undefined): string | null {
-  if (!itemId) return null;
-  const p5 = String(itemId).padStart(5, '0');
-  return `${INFO_ASSET}/item/awaken/en/thumb/thumb_awaken_items_${p5}/thumb_awaken_items_${p5}.png`;
-}
-
 /** Miniatura de carta para listas de apoyo (líderes 200%, partners, formas). */
 export interface DkMiniCard {
   id: number;
@@ -320,6 +262,8 @@ export interface DkCardPage {
    * no la tienen). Usado por la ficha para pintar el <canvas> animado.
    */
   anim: boolean;
+  /** Recompensas de Torneo Mundial (World Tournament). */
+  tournamentRewards: { points: number; name: string; image: string | null; tournamentId: number | null }[];
 }
 
 interface RawSkill {
@@ -357,6 +301,14 @@ interface RawZBattleRef {
   listbutton_image_path?: string | null;
   /** Ruta alternativa del cartel del evento. */
   image?: string | null;
+}
+
+/** Recompensa de Torneo Mundial cruda del datajson. */
+interface RawTournamentReward {
+  points?: number | null;
+  name?: string | null;
+  icon_id?: number | null;
+  world_tournament_id?: number | null;
 }
 
 /** Entrada cruda de `eza_medals` (una por escalón del EZA/SEZA). */
@@ -463,6 +415,8 @@ export function parseCardPage(html: string): DkCardPage | null {
     lwf?: boolean | null;
     max_eza_step?: number | null;
     similar_links?: { card?: DkCard | null; similar_links_count?: number | null; links?: number[] | null }[] | null;
+    /** Recompensas de Torneo Mundial (World Tournament). */
+    world_tournament_rewards?: RawTournamentReward[] | null;
   };
 
   const superAttacks: DkSuperAttack[] = mapSuperAttacks(j.super_attacks);
@@ -497,10 +451,18 @@ export function parseCardPage(html: string): DkCardPage | null {
     id: b.id ?? 0,
     type: b.type ?? '',
     name: (b.name ?? '').trim(),
-    startsAt: dkTime(b.open_at),
-    endsAt: dkTime(b.end_at),
+    startsAt: parseEpoch(b.open_at),
+    endsAt: parseEpoch(b.end_at),
     image: b.images?.[0] ? infoAssetUrl(b.images[0]) : null,
   }));
+
+  // Recompensas de Torneo Mundial (World Tournament)
+  const tournamentRewards = (j.world_tournament_rewards ?? []).map((r) => ({
+    points: r.points ?? 0,
+    name: (r.name ?? '').trim(),
+    image: r.icon_id ? infoThumbUrl(r.icon_id) : null,
+    tournamentId: r.world_tournament_id ?? null,
+  })).filter((r) => r.points > 0 && r.name);
 
   return {
     card: j.card,
@@ -526,8 +488,8 @@ export function parseCardPage(html: string): DkCardPage | null {
     })),
     ezaMedals,
     sezaMedals,
-    ezaOpenAt: dkTime(j.eza_open_date),
-    sezaOpenAt: dkTime(j.seza_open_date),
+    ezaOpenAt: parseEpoch(j.eza_open_date),
+    sezaOpenAt: parseEpoch(j.seza_open_date),
     // Step de awakening donde aplica cada estado: son los que pide la API de
     // habilidades por estado (`/api/cards/{id}/eza?step=N`).
     ezaStep: j.eza_open_date?.optimal_awakening_step ?? null,
@@ -543,6 +505,8 @@ export function parseCardPage(html: string): DkCardPage | null {
         shared: s.similar_links_count ?? s.links?.length ?? 0,
         linkIds: s.links ?? [],
       })),
+    // Recompensas de Torneo Mundial
+    tournamentRewards,
   };
 }
 
@@ -594,8 +558,8 @@ export function parseEventList(html: string): DkEventEntry[] {
         id: r.id as number,
         name: r.name ? decodeEntities(r.name) : null,
         image: eventImage(r.event_image_path) ?? eventImage(r.banner_image_path) ?? eventImage(r.listbutton_image_path),
-        startsAt: dkTime(r.start_at),
-        endsAt: dkTime(r.end_at),
+        startsAt: parseEpoch(r.start_at),
+        endsAt: parseEpoch(r.end_at),
       }));
   }
 
@@ -608,8 +572,8 @@ export function parseEventList(html: string): DkEventEntry[] {
         id: r.id as number,
         name: r.name ? decodeEntities(r.name) : null,
         image: eventImage(r.listbutton_image_path),
-        startsAt: dkTime(r.start_at),
-        endsAt: dkTime(r.end_at),
+        startsAt: parseEpoch(r.start_at),
+        endsAt: parseEpoch(r.end_at),
       }));
   }
 
@@ -906,8 +870,8 @@ export function parseMissions(html: string): { categories: DkMissionCategory[]; 
       missions: missionValues.map((m) => ({
         id: m.id ?? 0,
         name: decodeEntities((m.name ?? '').replace(/\s*\n\s*/g, ' ')),
-        startsAt: dkTime(m.start_at),
-        endsAt: dkTime(m.end_at),
+        startsAt: parseEpoch(m.start_at),
+        endsAt: parseEpoch(m.end_at),
         rewards: Object.values(m.mission_rewards ?? {}).map((r) => {
           const type = String(r.item_type ?? '');
           return {
@@ -955,7 +919,7 @@ export function parseNewsList(html: string): { items: DkNewsRow[]; lastPage: num
     title: decodeEntities(n.title ?? '').trim(),
     summary: decodeEntities(n.summary ?? '').trim(),
     banner: n.banner ? infoRootUrl(n.banner) : null,
-    startAt: dkTime(n.start_at),
+    startAt: parseEpoch(n.start_at),
   }));
   return { items, lastPage: raw?.last_page ?? 1 };
 }

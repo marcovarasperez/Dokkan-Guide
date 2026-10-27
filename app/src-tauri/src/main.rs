@@ -3,9 +3,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tauri::Builder::default()
-        // Transporte HTTP sin restricciones CORS hacia dokkan.fyi/cdn (usado por src/data/http.ts).
-        .plugin(tauri_plugin_http::init())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    dokkan_fan_guide::run();
 }

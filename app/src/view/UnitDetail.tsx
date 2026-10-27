@@ -68,8 +68,8 @@ function BannerCard({ b }: { b: AcqBannerData }) {
       <span class="acq-banner__info">
         <b>{b.name}</b>
         <span class="acq-banner__dates">
-          {b.startsAt ? formatDate(new Date(b.startsAt * 1000).toISOString()) : '…'} →{' '}
-          {b.endsAt ? formatDate(new Date(b.endsAt * 1000).toISOString()) : '…'}
+          {b.startsAt ? formatDate(b.startsAt) : '…'} →{' '}
+          {b.endsAt ? formatDate(b.endsAt) : '…'}
         </span>
         <span class={`acq-banner__tag${b.active ? '' : ' acq-banner__tag--old'}`}>
           {b.active ? 'Activo ahora mismo' : 'Finalizado'}
@@ -179,6 +179,8 @@ export default function UnitDetail({ id }: { id: number }) {
     linksReady,
     linksIndex,
     linkEntry,
+  // Recompensas de Torneo Mundial
+    tournamentRewards,
   } = useUnitDetail(id);
 
   if (!summary) {
@@ -821,6 +823,23 @@ export default function UnitDetail({ id }: { id: number }) {
                     onToggle={toggleEvents}
                     label="eventos"
                   />
+                </div>
+              )}
+              {tournamentRewards.length > 0 && (
+                <div class="acq-block">
+                  <h4 class="acq-sub">Torneo Mundial</h4>
+                  <div class="acq-events">
+                    {tournamentRewards.map((r) => (
+                      <a class="acq-event" key={r.name} href={r.tournamentId ? `#/eventos?ev=worldtournament/${r.tournamentId}` : '#'}>
+                        {r.image && <InfoImg url={r.image} alt="" cls="acq-event__img" />}
+                        <span class="acq-event__info">
+                          <b>{r.name}</b>
+                          <span class="acq-event__stage">Recompensa del torneo · {r.points.toLocaleString()} puntos</span>
+                          <span class="acq-banner__tag">{r.tournamentId ? 'Ver torneo →' : 'Sin enlace'}</span>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
                 </div>
               )}
               {acquire?.summonable && (

@@ -17,6 +17,8 @@ import { fetchTextUrl } from './http';
 import { applySyncResult, getHashes, getUnits } from './repository';
 import type { UnitFull } from './detail';
 import type { SkillText, Stats, UnitRarity, UnitSummary, UnitType } from './types';
+import { fnv1a, stableStringify } from './hash';
+import { parseEpoch } from './date';
 
 const FYI_SOURCE = 'https://dokkan.fyi';
 const FYI_DEV_PREFIX = '/dfyi';
@@ -37,32 +39,6 @@ function parseFyiProps(html: string): Record<string, any> {
   const m = html.match(/<script data-page="app" type="application\/json">([\s\S]*?)<\/script>/);
   if (!m) throw new Error('dokkan.fyi: no se encontró data-page');
   return (JSON.parse(m[1]) as { props: Record<string, any> }).props;
-}
-
-/* ---------- Hash idéntico a tools/sync.mjs (port) ---------- */
-
-function fnv1a(str: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i += 1) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-function stable(v: unknown): string {
-  if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
-  if (v && typeof v === 'object') {
-    return (
-      '{' +
-      Object.keys(v as object)
-        .sort()
-        .map((k) => JSON.stringify(k) + ':' + stable((v as Record<string, unknown>)[k]))
-        .join(',') +
-      '}'
-    );
-  }
-  return JSON.stringify(v) ?? 'null';
 }
 
 /* ---------- Normalización (port exacto de normalizeRecord) ---------- */
@@ -153,7 +129,7 @@ function normalizeFyiRecord(
     hasBattleMotion: !!raw.has_battle_motion,
   };
 
-  return { summary, hash: fnv1a(stable({ summary, detail: hashDetail })) };
+  return { summary, hash: fnv1a(stableStringify({ summary, detail: hashDetail })) };
 }
 
 /** Ficha completa construida desde el registro fyi (mejor que un detalle vacío). */
@@ -273,7 +249,8 @@ export interface FyiNewsItem {
   title: string;
   summary: string;
   banner: string | null;
-  startAt: string | null;
+  /** Época en segundos (epoch) — se formatea en la vista con formatDate. */
+  startAt: number | null;
   category: string | null;
   tab: string | null;
   bodies: { id: number; image: string | null; description: string }[];
@@ -288,7 +265,7 @@ export async function fetchNewsFromFyi(): Promise<FyiNewsItem[]> {
     title: cleanText(a.title) ?? '',
     summary: a.summary_text ?? '',
     banner: a.banner ?? null,
-    startAt: a.start_at ?? null,
+    startAt: parseEpoch(a.start_at),
     category: a.category ?? null,
     tab: a.tab ?? null,
     bodies: (a.bodies ?? []).map((b: Record<string, unknown> | null) => ({

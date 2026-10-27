@@ -20,6 +20,7 @@ import BannersView from './BannersView';
 import BannerDetail from './BannerDetail';
 import EventosView from './EventosView';
 import BabaView from './BabaView';
+import { SettingsView } from './SettingsView';
 
 /**
  * VISTA · Shell de la aplicación.
@@ -76,6 +77,8 @@ export default function App() {
         <EventosView focus={focus} />
       ) : currentView === 'baba' ? (
         <BabaView />
+      ) : currentView === 'settings' ? (
+        <SettingsView />
       ) : currentView === 'categories' ? (
         <CategoryView id={category} units={units} />
       ) : detail !== null ? (

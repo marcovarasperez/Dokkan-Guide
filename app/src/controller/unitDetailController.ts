@@ -70,9 +70,9 @@ export const normalizeSaStyle = (style: string): string => {
   return style;
 };
 
-/** ¿Queda en el futuro? (fecha ISO → chip "previsto" en las fechas). */
-export const isFuture = (iso: string | null): boolean =>
-  !!iso && Date.parse(iso) > Date.now();
+/** ¿Queda en el futuro? (epoch seconds → chip "previsto" en las fechas). */
+export const isFuture = (epochSec: number | null): boolean =>
+  epochSec !== null && epochSec * 1000 > Date.now();
 
 /**
  * Umbral de cobertura de un leader skill: con 170 % o más en HP, ATK o DEF
@@ -256,8 +256,8 @@ export function useUnitDetail(id: number) {
   const liveState = (o: {
     hasSeza: boolean;
     hasEza: boolean;
-    sezaAt: string | null;
-    ezaAt: string | null;
+    sezaAt: number | null;
+    ezaAt: number | null;
   }): UnitState => {
     const sezaLive = o.hasSeza && !(o.sezaAt !== null && isFuture(o.sezaAt));
     const ezaLive = (o.hasEza && !(o.ezaAt !== null && isFuture(o.ezaAt))) || sezaLive;
@@ -477,6 +477,8 @@ export function useUnitDetail(id: number) {
   }));
   const ezaMedals = acquire?.ezaMedals ?? [];
   const sezaMedals = acquire?.sezaMedals ?? [];
+  // Recompensas de Torneo Mundial (World Tournament)
+  const tournamentRewards = acquire?.tournamentRewards ?? [];
   // La unidad tiene EZA/SEZA pero el índice no enlaza ningún evento (todavía
   // no está en la fuente): se avisa en lugar de dejar la sección muda.
   const ezaEventMissing =
@@ -725,6 +727,8 @@ export function useUnitDetail(id: number) {
     showAllSezaMedals,
     toggleSezaMedals: () => setShowAllSezaMedals((v) => !v),
     ezaEventMissing,
+    // Recompensas de Torneo Mundial
+    tournamentRewards,
     // links
     openLink,
     setOpenLink,
