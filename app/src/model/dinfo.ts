@@ -146,6 +146,7 @@ export interface DkCardRow {
   eza_open_at: number | null;
   seza: number | null;
   seza_open_at: number | null;
+  awoken_max: number | null;
   optimal_awakening_step: number | null;
 }
 

@@ -24,7 +24,11 @@
  */
 
 export const DB_NAME = 'dk-detail';
-const DB_VERSION = 2; // v2: + units/meta/fresh/news/events/banners
+// v3: repara BDs que existen a v2 SIN tiendas (una apertura externa a esta
+// código las creó vacías: sin `onupgradeneeded` nunca se crean). Subir la
+// versión dispara `onupgradeneeded` y el handler crea las que falten; en una
+// BD sana es un no-op (ya existen).
+const DB_VERSION = 3;
 
 export const STORE_DETAILS = 'details';
 export const STORE_UNITS = 'units';
@@ -58,7 +62,15 @@ export function openLocalDb(): Promise<IDBDatabase> {
           if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name);
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        // Otra pestaña/subida de versión → cerrar y permitir reabrir (evita
+        // quedarse con una BD bloqueada o sin tiendas).
+        req.result.onversionchange = () => {
+          req.result.close();
+          dbPromise = null;
+        };
+        resolve(req.result);
+      };
       req.onerror = () => reject(req.error);
       req.onblocked = () => reject(new Error('Base de datos bloqueada por otra pestaña'));
     } catch (e) {

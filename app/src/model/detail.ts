@@ -1,6 +1,6 @@
 import type { SkillText, Stats, UnitSummary, UnitType, UnitRarity } from './types';
 import { fetchInfoText } from './http';
-import { getHashes } from './repository';
+import { getHashes, getUnit } from './repository';
 import { dbGet, dbSet, STORE_DETAILS } from './localDb';
 import {
   parseCardPage,
@@ -262,32 +262,50 @@ const inflight = new Map<number, Promise<UnitFull>>();
 /* ---------- Normalización ---------- */
 
 /**
- * Stats máximas con EZA/SEZA — fórmula exacta de dokkaninfo (bundle app.js):
- * `max + Math.round((max − init) × 0.4839)`, su columna "EZA B. Max".
- * Se aplica SIEMPRE que la fuente no traiga el valor (filas de dokkaninfo no
- * publican stats EZA): así toda unidad con EZA/SEZA tiene su cifra. Los
- * valores reales del datamine de dokkan.fyi solo existen en la semilla y se
- * conservan tal cual (los resúmenes del feed no se reconsstruyen).
+ * Stats máximas con EZA/SEZA.
+ *
+ * dokkaninfo calcula el EZA en cliente con `max + round((max − init) × 0.4839)`
+ * (su columna "EZA B. Max") y SOLO la pinta para rareza < 5 (`rarity<5` en su
+ * bundle): para LR la fórmula se desvía hasta +8145 HP del valor real (medido
+ * contra el datamine: UR difiere ≤ 2, LR difiere en 366/366 stats), así que
+ * ahí solo vale el datamine de dokkan.fyi y, si no existe, se conserva el
+ * máx. base en lugar de inventar una cifra.
+ *
+ * `prev` son los stats que ya se conocían (semilla/datamine): se usan solo si
+ * siguen correspondiendo a esa misma carta (mismo base/máx.) y aportan un
+ * valor real (eza ≠ máx.).
  */
 const ezaMax = (max: number, init: number): number => max + Math.round((max - init) * 0.4839);
 
-const statsFromCard = (c: DkCard): Stats => ({
-  hp: {
-    base: c.hp_init ?? 0,
-    max: c.hp_max ?? 0,
-    eza: ezaMax(c.hp_max ?? 0, c.hp_init ?? 0),
-  },
-  atk: {
-    base: c.atk_init ?? 0,
-    max: c.atk_max ?? 0,
-    eza: ezaMax(c.atk_max ?? 0, c.atk_init ?? 0),
-  },
-  def: {
-    base: c.def_init ?? 0,
-    max: c.def_max ?? 0,
-    eza: ezaMax(c.def_max ?? 0, c.def_init ?? 0),
-  },
-});
+const statsFromCard = (c: DkCard, prev?: Stats | null): Stats => {
+  const stat = (base: number, max: number, prevStat?: Stats['hp']): number => {
+    const real =
+      prevStat && prevStat.base === base && prevStat.max === max && prevStat.eza !== max
+        ? prevStat.eza
+        : null;
+    if (real != null) return real;
+    // La fórmula de la fuente no cubre LR (van a SEZA) ni cartas sin EZA.
+    if (c.rarity >= 5 || c.optimal_awakening_grow_type == null) return max;
+    return ezaMax(max, base);
+  };
+  return {
+    hp: {
+      base: c.hp_init ?? 0,
+      max: c.hp_max ?? 0,
+      eza: stat(c.hp_init ?? 0, c.hp_max ?? 0, prev?.hp),
+    },
+    atk: {
+      base: c.atk_init ?? 0,
+      max: c.atk_max ?? 0,
+      eza: stat(c.atk_init ?? 0, c.atk_max ?? 0, prev?.atk),
+    },
+    def: {
+      base: c.def_init ?? 0,
+      max: c.def_max ?? 0,
+      eza: stat(c.def_init ?? 0, c.def_max ?? 0, prev?.def),
+    },
+  };
+};
 
 
 /** Superataque de la fuente → entrada de la ficha (compartida por base y estados). */
@@ -311,13 +329,19 @@ export function summaryFromCardPage(
     openAt?: number | null;
     ezaOpenAt?: number | null;
     sezaOpenAt?: number | null;
+    /** Stats ya conocidos (semilla/datamine) para conservar el EZA/SEZA real. */
+    prevStats?: Stats | null;
+    /** ID de personaje base (para detectar exchange/transformaciones). */
+    characterId?: number | null;
+    /** Si es forma intercambiada (no se muestra en listado principal). */
+    isExchangeForm?: boolean;
   },
 ): UnitSummary {
   const c = page.card;
   const openAt = opts?.openAt ?? parseEpoch(c.open_at);
   const ezaOpenAt = opts?.ezaOpenAt ?? page.ezaOpenAt;
   const sezaOpenAt = opts?.sezaOpenAt ?? page.sezaOpenAt;
-  const hasEza = opts?.hasEza ?? (ezaOpenAt !== null || page.ezaBattles.length > 0);
+  const hasEza = opts?.hasEza ?? (page.card.eza === 1);
   const hasSeza = opts?.hasSeza ?? false;
 
   // Última fecha conocida (inicial / EZA / SEZA) para ordenar el listado.
@@ -358,12 +382,14 @@ export function summaryFromCardPage(
       latest: latest ? latest[1] : null,
       latestType: latest ? latest[0] : null,
     },
-    stats: statsFromCard(c),
+    stats: statsFromCard(c, opts?.prevStats),
     hpGains,
     linkIds: page.links.map((l) => l.id),
     linkNames: page.links.map((l) => l.name),
     leaderSkill: page.leaderSkill,
     passiveSkill: page.passiveSkill,
+    characterId: opts?.characterId ?? c.character_id ?? null,
+    isExchangeForm: opts?.isExchangeForm ?? false,
   };
 }
 
@@ -372,6 +398,7 @@ export function fullFromCardPage(
   page: DkCardPage,
   dropsIndex: DropsIndex | null,
   zbIndex: ZbattlesIndex | null = null,
+  prevStats?: Stats | null,
 ): UnitFull {
   const now = Date.now() / 1000;
   const drops: AcquireDrop[] = [];
@@ -388,7 +415,7 @@ export function fullFromCardPage(
   }
 
   return {
-    stats: statsFromCard(page.card),
+    stats: statsFromCard(page.card, prevStats),
     leaderSkill: page.leaderSkill,
     passiveSkill: page.passiveSkill,
     activeSkills: page.activeSkills,
@@ -544,7 +571,10 @@ export async function fetchUnitDetail(id: number, force = false): Promise<UnitFu
     const page = parseCardPage(html);
     if (!page) throw new Error(`Ficha ilegible para la unidad ${id}`);
     const dropsIndex = await loadDropsIndex();
-    const data = fullFromCardPage(page, dropsIndex, await loadZbattlesIndex());
+    // Stats previos (semilla/datamine) para no sustituir un EZA/SEZA real por
+    // la fórmula de la fuente (inválida en LR).
+    const prevStats = getUnit(id)?.stats ?? null;
+    const data = fullFromCardPage(page, dropsIndex, await loadZbattlesIndex(), prevStats);
     memCache.set(id, data);
     await idbSet(`u${id}`, { v: CACHE_VERSION, indexHash, data });
     return data;

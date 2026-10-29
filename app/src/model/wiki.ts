@@ -6,8 +6,10 @@
  *                            (dokkaninfo.com/links); los chips de la ficha
  *                            muestran el efecto a Nv.10 al pulsarlos.
  *  - categories.index.json → categorías con sus líderes (con boost) y sus
- *                            personajes por id (dokkan.fyi); el fichero solo
- *                            guarda ids y los datos salen del índice local.
+ *                            personajes por id (generado por tools/wiki_sync.mjs
+ *                            desde dokkan.fyi — dokkaninfo.com no expone esta
+ *                            API); el fichero solo guarda ids y los datos salen
+ *                            del índice local.
  */
 
 export interface LinkEntry {

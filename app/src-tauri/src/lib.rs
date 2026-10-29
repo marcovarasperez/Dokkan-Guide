@@ -1,7 +1,6 @@
 // Guía fan de Dokkan Battle Global — proyecto no comercial.
 // Biblioteca para Android (cdylib) y otros targets.
 
-#[tauri::mobile_entry_point]
 pub fn run() {
     tauri::Builder::default()
         // Transporte HTTP sin restricciones CORS hacia dokkan.fyi/cdn (usado por src/data/http.ts).

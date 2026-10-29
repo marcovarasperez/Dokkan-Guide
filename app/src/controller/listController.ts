@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import type { UnitClass, UnitRarity, UnitSummary, UnitType } from '../model/types';
-import { getUnits, getUpdatedAt, loadRepository } from '../model/repository';
+import { getUnits, getUnitsForList, getUpdatedAt, loadRepository } from '../model/repository';
 import { checkOnOpen, startAutoRefresh, syncState } from '../model/sync';
 import { loadSeedIfEmpty } from '../model/news';
 
@@ -63,9 +63,6 @@ function getSortKeys(u: UnitSummary): Record<string, number | string> {
   return keys;
 }
 
-/** Orden de rarezas (del más bajo al más alto), como en el juego. */
-const RARITY_INDEX: Record<UnitRarity, number> = { N: 0, R: 1, SR: 2, SSR: 3, UR: 4, LR: 5 };
-
 /** Comparadores de orden por criterio (sentido descendente por defecto). */
 const SORTERS: Record<SortKey, (a: UnitSummary, b: UnitSummary) => number> = {
   recent: (a, b) => {
@@ -87,7 +84,7 @@ export function useListController() {
   useEffect(() => {
     loadRepository()
       .then(() => {
-        units.value = getUnits();
+        units.value = getUnitsForList();
       })
       .catch(() => {
         /* el estado vacío de la UI ya comunica el fallo */
@@ -109,7 +106,7 @@ export function useListController() {
   useEffect(
     () =>
       syncState.subscribe(() => {
-        if (syncState.value.phase === 'updated') units.value = getUnits();
+        if (syncState.value.phase === 'updated') units.value = getUnitsForList();
       }),
     [],
   );

@@ -108,46 +108,37 @@ function isCondHeading(heading: string): boolean {
   if (/effect/i.test(heading)) return true; // "Basic effect(s)" → color de condiciones
   if (/condition/i.test(heading)) return true;
   // Condiciones: "When HP is…", "After receiving…", "With a TEQ Ki Sphere…",
-  // "For 7 turn(s)…", "Activates the Entrance…", "7 or more Ki Spheres…", etc.
-  return /^(?:when|after|with|for|activates?|if|at|on|once|by|per|during|each|every|starting|while|under|upon|within|until|in|from|same|received|performing|obtained|entry|exchange|transformation|revival|having|launching|performing|\d)/i.test(
+  // "For 7 turn(s)…", "Activates the Entrance…", "7 or more Ki Spheres…",
+  // "As the 1st/2nd/3rd attacker in a turn" (condición de slot), etc.
+  return /^(?:when|after|with|for|activates?|if|at|on|once|by|per|during|each|every|starting|while|under|upon|within|until|in|from|same|received|performing|obtained|entry|exchange|transformation|revival|having|launching|performing|as|\d)/i.test(
     heading,
   );
 }
+
+/**
+ * Condición de SLOT (posición en el orden de ataque) escrita DENTRO de una
+ * viñeta: "…as the 1st attacker in a turn", "when attacking as the 2nd or 3rd
+ * attacker in a turn", "when the character is the 1st attacker at the start of
+ * turn"… → se pinta en naranja como los encabezados de condición.
+ */
+const SLOT_COND_SRC =
+  '(?:when attacking\\s+)?as the \\d(?:st|nd|rd)(?:\\s+or\\s+\\d(?:st|nd|rd))?\\s+attacker(?:\\s+in a turn)?(?:\\s+at the start of turn)?|' +
+  'when (?:this |the )?character is(?:t)? the \\d(?:st|nd|rd)(?:\\s+or\\s+\\d(?:st|nd|rd))?\\s+attacker(?:\\s+at the start of turn)?';
 
 /** Iconos, números (+150%, +2, −1) resaltados. */
 const EM_TOKEN = /(\{passiveImg:[A-Za-z0-9_]+\}|\+?\d+(?:\.\d+)?%|\+\d+(?:\.\d+)?|-\d+(?:\.\d+)?)/;
 /** Palabras de stat (replica el split alterno de la fuente). */
 const STAT_TOKEN = /\b(ATK|DEF|HP)\b/;
 
-function renderStats(text: string, k: string): ComponentChildren[] {
-  const out: ComponentChildren[] = [];
-  const parts = text.split(STAT_TOKEN);
-  parts.forEach((part, i) => {
-    if (!part) return;
-    out.push(
-      i % 2 === 1 ? (
-        <b class="rich-stat" key={`${k}s${i}`}>
-          {part}
-        </b>
-      ) : (
-        <span key={`${k}t${i}`}>{part}</span>
-      ),
-    );
-  });
-  return out;
-}
-
 /** Segmenta texto plano en iconos/números resaltados y stats en negrita. */
-export function richInline(text: string, key = 'r'): ComponentChildren[] {
-  if (!text) return [];
-  const withChances = withChancePct(text);
+function renderTokens(text: string, key: string): ComponentChildren[] {
   const out: ComponentChildren[] = [];
   const re = new RegExp(EM_TOKEN, 'g');
   let last = 0;
   let m: RegExpExecArray | null;
   let n = 0;
-  while ((m = re.exec(withChances)) !== null) {
-    if (m.index > last) out.push(...renderStats(withChances.slice(last, m.index), `${key}${n}`));
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(...renderTokensPlain(text.slice(last, m.index), `${key}${n}`));
     const token = m[0];
     if (token.startsWith('{passiveImg:')) {
       const name = token.slice('{passiveImg:'.length, -1);
@@ -162,7 +153,53 @@ export function richInline(text: string, key = 'r'): ComponentChildren[] {
     last = m.index + token.length;
     n++;
   }
-  if (last < withChances.length) out.push(...renderStats(withChances.slice(last), `${key}${n}`));
+  if (last < text.length) out.push(...renderTokensPlain(text.slice(last), `${key}${n}`));
+  return out;
+}
+
+/** Texto con stats en negrita (sin iconos/números). */
+function renderTokensPlain(text: string, key: string): ComponentChildren[] {
+  const out: ComponentChildren[] = [];
+  const parts = text.split(STAT_TOKEN);
+  parts.forEach((part, i) => {
+    if (!part) return;
+    out.push(
+      i % 2 === 1 ? (
+        <b class="rich-stat" key={`${key}s${i}`}>
+          {part}
+        </b>
+      ) : (
+        <span key={`${key}t${i}`}>{part}</span>
+      ),
+    );
+  });
+  return out;
+}
+
+/**
+ * Segmenta en: condición de slot (→ naranja) | resto (iconos/números/stats).
+ * La condición de slot queda fuera del reparto de tokens para que su texto se
+ * pinte entero, igual que un encabezado de condición.
+ */
+export function richInline(text: string, key = 'r'): ComponentChildren[] {
+  if (!text) return [];
+  const withChances = withChancePct(text);
+  const out: ComponentChildren[] = [];
+  const re = new RegExp(`(${SLOT_COND_SRC})`, 'gi');
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let n = 0;
+  while ((m = re.exec(withChances)) !== null) {
+    if (m.index > last) out.push(...renderTokens(withChances.slice(last, m.index), `${key}b${n}`));
+    out.push(
+      <b class="rich-cond-inline" key={`${key}c${n}`}>
+        {m[0]}
+      </b>,
+    );
+    last = m.index + m[0].length;
+    n++;
+  }
+  if (last < withChances.length) out.push(...renderTokens(withChances.slice(last), `${key}b${n}`));
   return out;
 }
 

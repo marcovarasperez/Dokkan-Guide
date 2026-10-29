@@ -1,13 +1,12 @@
 /**
- * Transporte HTTP hacia dokkaninfo.com (fuente viva de datos, Fase 9).
+ * Transporte HTTP hacia dokkaninfo.com (fuente única de datos, Fase 9).
  *
  * Protección contra el bloqueo de Cloudflare (solución definitiva al 403):
  *  - set de cabeceras VERIFICADO (UA + Accept-Language, el mismo que curl
  *    envía y que se comprobó con 200 en oct-2026); client-hints añadidos
  *    (sec-ch-ua / sec-fetch-*) empeoraban el score y se descartaron;
  *  - reintentos (3) con espera exponencial y `Retry-After` ante 403/429;
- *  - espaciado mínimo (~900 ms) entre peticiones a la fuente (rate-limit);
- *  - si la fuente sigue bloqueada, sync.ts recurre a dokkan.fyi (fyi.ts).
+ *  - espaciado mínimo (~900 ms) entre peticiones a la fuente (rate-limit).
  *
  * Además bloquea el <img> directo dentro de la WebView (ORB), así que las
  * imágenes se piden por el transporte nativo y se muestran como blob.
@@ -181,7 +180,7 @@ const isOk = (status: number): boolean => status >= 200 && status < 300;
 
 /**
  * Descarga texto desde dokkaninfo.com (espaciado + reintentos). Cualquier fallo
- * se propaga para que el llamante caiga a dokkan.fyi o muestre su estado.
+ * se propaga para que el llamante muestre su estado (caché).
  */
 export async function fetchInfoText(path: string): Promise<string> {
   // El catálogo /cards pesa ~12 MB: en 4G un timeout corto fallaba.
@@ -220,8 +219,7 @@ export async function fetchInfoBytes(path: string, timeoutMs = 30000): Promise<A
 
 /**
  * Descarga texto desde una URL arbitraria con el mismo transporte que el resto
- * de la app (Tauri/Capacitor nativos; fetch simple en web). Usado por el feed
- * datamine (JSON propio publicado, p. ej. GitHub Pages).
+ * de la app (Tauri/Capacitor nativos; fetch simple en web).
  */
 export async function fetchTextUrl(url: string, readTimeoutMs = 30000): Promise<string> {
   const p = await transportGet(url, readTimeoutMs, { accept: 'application/json' });

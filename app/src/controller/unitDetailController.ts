@@ -10,6 +10,7 @@ import type { StateSkills, UnitFull } from '../model/detail';
 import { recommendHp } from '../model/hp';
 import type { HpSeed } from '../model/hp';
 import { TYPE_COLORS } from '../model/adapter';
+import { potentialFlatBonus } from '../model/constants';
 import { loadLinksIndex } from '../model/wiki';
 import type { LinksIndex } from '../model/wiki';
 import { startCardAnim } from '../model/cardAnim';
@@ -507,11 +508,12 @@ export function useUnitDetail(id: number) {
     ezaSelected || sezaSelected ? stats[k].eza : stats[k].max;
 
   // Columnas 55 %/100 % del Hidden Potential (mismas fórmulas que dokkaninfo):
-  // 55 % = bonus plano fijo según tablero de potential (1600; 2800 en los
-  // tableros grandes 30–34); 100 % = ganancias absolutas del potential.
+  // 55 % = bonus plano según el tablero de potential (1200/2000/2800/1600,
+  // mapeo exacto de la fuente en constants.potentialFlatBonus); 100 % =
+  // ganancias absolutas del potential.
   const hipo = viewFull?.hipoGains ?? null;
   const hipoBoard = viewFull?.potentialBoardId ?? null;
-  const hipoFlat = hipoBoard !== null && hipoBoard >= 30 && hipoBoard <= 34 ? 2800 : 1600;
+  const hipoFlat = potentialFlatBonus(hipoBoard);
 
   // Rankings de la ficha (líderes con sus porcentajes + linking partners)
   const leaders = full?.bestLeaders ?? [];

@@ -45,6 +45,10 @@ export interface UnitSummary {
   linkNames: string[];
   leaderSkill: SkillText | null;
   passiveSkill: SkillText | null;
+  /** ID de personaje base (agrupa formas, intercambios, transformaciones). */
+  characterId: number | null;
+  /** true si es forma intercambiada/transformada (no se muestra en el listado principal). */
+  isExchangeForm: boolean;
 }
 
 export interface SeedMeta {

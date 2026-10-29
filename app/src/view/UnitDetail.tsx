@@ -365,41 +365,55 @@ export default function UnitDetail({ id }: { id: number }) {
                     : 'Stats'
             }
           >
-            <table class="stats-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Nv. 1</th>
-                  <th>Nv. máx.</th>
-                  {hipo && <th>55 %</th>}
-                  {hipo && <th>100 %</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {(['hp', 'atk', 'def'] as const).map((k) => (
-                  <tr key={k}>
-                    <th>{k.toUpperCase()}</th>
-                    <td>{formatNumber(stats[k].base)}</td>
-                    <td>{formatNumber(stateMax(k))}</td>
-                    {hipo && <td>{formatNumber(stateMax(k) + hipoFlat)}</td>}
-                    {hipo && <td>{formatNumber(stateMax(k) + hipo[k])}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {hipo && (
-              <p class="skill-note">
-                Hidden Potential: 55 % = máx. del estado + bonus plano del primer
-                camino; 100 % = máx. + ganancias completas del potential.
-              </p>
-            )}
-            {(ezaSelected || sezaSelected) && (
-              <p class="skill-note">
-                {ezaSelected
-                  ? 'Stats EZA por la fórmula de dokkaninfo (máx. + 48,39 % del margen min→máx) o el datamine de dokkan.fyi.'
-                  : 'Stats SEZA estimados con la fórmula de dokkaninfo (máx. + 48,39 % del margen min→máx): el datamine no publica stats SEZA.'}
-              </p>
-            )}
+            {/* Columnas 55 %/100 %: solo UR/LR (dokkaninfo no las muestra en
+                rareza ≤ 3, `rarity>3` en su bundle). */}
+            {(() => {
+              const hipoCols = !!hipo && (viewRarity === 'UR' || viewRarity === 'LR');
+              return (
+                <>
+                  <table class="stats-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Nv. 1</th>
+                        <th>Nv. máx.</th>
+                        {hipoCols && <th>55 %</th>}
+                        {hipoCols && <th>100 %</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(['hp', 'atk', 'def'] as const).map((k) => (
+                        <tr key={k}>
+                          <th>{k.toUpperCase()}</th>
+                          <td>{formatNumber(stats[k].base)}</td>
+                          <td>{formatNumber(stateMax(k))}</td>
+                          {hipoCols && hipo && (
+                            <td>{formatNumber(stateMax(k) + hipoFlat)}</td>
+                          )}
+                          {hipoCols && hipo && (
+                            <td>{formatNumber(stateMax(k) + hipo[k])}</td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {hipoCols && (
+                    <p class="skill-note">
+                      Hidden Potential: 55 % = máx. del estado + bonus plano del
+                      tablero de potential; 100 % = máx. + ganancias completas del
+                      potential.
+                    </p>
+                  )}
+                  {(ezaSelected || sezaSelected) && (
+                    <p class="skill-note">
+                      {ezaSelected
+                        ? 'Stats EZA: datamine de dokkan.fyi cuando existe; si no, fórmula de dokkaninfo (máx. + 48,39 % del margen min→máx), válida solo para rareza < 5.'
+                        : 'Stats SEZA: datamine de dokkan.fyi cuando existe; si no, máx. base (dokkaninfo no publica stats SEZA y su fórmula no cubre LR).'}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </Section>
         </div>
 

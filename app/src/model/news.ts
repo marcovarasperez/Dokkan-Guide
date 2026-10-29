@@ -1,7 +1,6 @@
 import { signal } from '@preact/signals';
 import { fetchInfoText } from './http';
 import { extractNewsBody, parseNewsList } from './dinfo';
-import { fetchNewsFromFyi } from './fyi';
 import { parseEpoch } from './date';
 
 /**
@@ -35,9 +34,8 @@ interface NewsItem {
   bodies: NewsBody[];
   /** Cuerpo completo del artículo (dokkaninfo; null hasta abrir la noticia). */
   bodyHtml: string | null;
-  /** 'dk' = listado de dokkaninfo · 'fyi' = respaldo dokkan.fyi (cuerpos en línea)
-   *  · 'seed' = empaquetado (solo visual, sin fetch). */
-  source: 'dk' | 'fyi' | 'seed';
+  /** 'dk' = listado de dokkaninfo · 'seed' = empaquetado (solo visual, sin fetch). */
+  source: 'dk' | 'seed';
 }
 
 interface NewsCache {
@@ -147,34 +145,9 @@ export async function refreshNews(): Promise<void> {
     }
     newsState.value = { ...newsState.value, refreshing: false };
   } catch (e) {
-    // Respaldo dokkan.fyi (mismo datamine que la semilla; sin Cloudflare):
     console.warn('[news] Listado dokkaninfo no disponible:', e instanceof Error ? e.message : String(e));
-    try {
-      const fyiItems = await fetchNewsFromFyi();
-      if (fyiItems.length) {
-        const news: NewsItem[] = fyiItems
-          .map((n) => ({
-            id: n.id,
-            title: n.title,
-            summary: n.summary,
-            banner: n.banner,
-            startAt: n.startAt,
-            category: n.category,
-            tab: n.tab,
-            bodies: n.bodies,
-            bodyHtml: null,
-            source: 'fyi' as const,
-          }))
-          .sort((a, b) => (a.startAt ?? '') < (b.startAt ?? '') ? 1 : -1);
-        newsState.value = { cache: { news, updatedAt: Date.now() }, refreshing: false, failed: false };
-        return;
-      }
-      const hasContent = (newsState.value.cache?.news.length ?? 0) > 0;
-      newsState.value = { ...newsState.value, refreshing: false, failed: !hasContent };
-    } catch {
-      const hasContent = (newsState.value.cache?.news.length ?? 0) > 0;
-      newsState.value = { ...newsState.value, refreshing: false, failed: !hasContent };
-    }
+    const hasContent = (newsState.value.cache?.news.length ?? 0) > 0;
+    newsState.value = { ...newsState.value, refreshing: false, failed: !hasContent };
   }
 }
 

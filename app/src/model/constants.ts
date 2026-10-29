@@ -66,5 +66,19 @@ export const BANNERS_CACHE_VERSION = 1;
 /** Clave de meta de sincronización */
 export const SYNC_META_KEY = 'sync';
 
+/**
+ * Bonus plano de la columna "+55 %" del Hidden Potential, por tablero de
+ * potential (`potential_board_id` del datajson). Mapeo exacto de dokkaninfo
+ * (bundle `build/assets/app.*.js`, tabla de stats): 10–14 → 1200; 20–24 y
+ * 120–124 → 2000; 30–34 → 2800; el resto (y tablero desconocido) → 1600.
+ */
+export function potentialFlatBonus(board: number | null | undefined): number {
+  if (board == null) return 1600;
+  if (board >= 10 && board <= 14) return 1200;
+  if ((board >= 20 && board <= 24) || (board >= 120 && board <= 124)) return 2000;
+  if (board >= 30 && board <= 34) return 2800;
+  return 1600;
+}
+
 /** Tipos de evento principales que alimentan la pestaña "Eventos" */
 export const MAIN_EVENT_TYPES = ['limited', 'story', 'growth', 'challenge', 'bonus'] as const;

@@ -2,11 +2,13 @@ import { signal } from '@preact/signals';
 import type { UnitSummary, SeedMeta } from './types';
 import type { UnitFull } from './detail';
 import { parseEpoch } from './date';
+import { dbGet, dbSet, STORE_META } from './localDb';
+import { SYNC_META_KEY } from './constants';
 
 /**
  * Repositorio en memoria — datos en memoria, sin persistencia local.
  * La semilla (seed) se carga al inicio para mostrar datos instantáneos;
- * la sincronización actualiza desde la red (dokkaninfo.com / dokkan.fyi).
+ * la sincronización actualiza desde la red (dokkaninfo.com).
  */
 
 interface NormalizedRecord {
@@ -65,6 +67,8 @@ async function loadInternal(): Promise<void> {
   // Convert ISO string dates to epoch seconds in the seed data
   const convertDates = (u: UnitSummary): UnitSummary => ({
     ...u,
+    characterId: u.characterId ?? null,
+    isExchangeForm: u.isExchangeForm ?? false,
     releaseDates: {
       initial: parseEpoch(u.releaseDates.initial),
       eza: parseEpoch(u.releaseDates.eza),
@@ -162,12 +166,34 @@ export async function applySyncResult(input: SyncApplyInput): Promise<SyncCounts
   return { newUnits, changedUnits, freshUnitIds };
 }
 
-/** Throttle de sincronización (1 intento por apertura, ≥15 min entre intentos). */
+/** Unidades para el listado principal: excluye formas intercambiadas/transformadas. */
+export function getUnitsForList(): UnitSummary[] {
+  return Array.from(summaries.values()).filter((u) => !u.isExchangeForm);
+}
+
+/** Throttle de sincronización: persistido en IDB (tienda `meta`, clave
+ *  'sync') para que la última fecha conocida sobreviva a recargar la app.
+ *  Solo en memoria hasta la primera lectura; IDB best-effort (si no está
+ *  disponible se queda en RAM, como antes). */
+let metaHydrated = false;
+
 export async function readSyncMeta(): Promise<SyncMetaState> {
+  if (!metaHydrated) {
+    metaHydrated = true;
+    const stored = await dbGet<SyncMetaState>(STORE_META, SYNC_META_KEY);
+    if (stored) {
+      meta.lastAttemptAt = stored.lastAttemptAt ?? null;
+      meta.lastSuccessAt = stored.lastSuccessAt ?? null;
+    }
+  }
   return { lastAttemptAt: meta.lastAttemptAt, lastSuccessAt: meta.lastSuccessAt };
 }
 
 export async function writeSyncMeta(patch: SyncMetaState): Promise<void> {
   meta.lastAttemptAt = patch.lastAttemptAt;
   meta.lastSuccessAt = patch.lastSuccessAt;
+  await dbSet<SyncMetaState>(STORE_META, SYNC_META_KEY, {
+    lastAttemptAt: meta.lastAttemptAt,
+    lastSuccessAt: meta.lastSuccessAt,
+  });
 }
