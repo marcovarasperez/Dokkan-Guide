@@ -388,7 +388,7 @@ export default function UnitDetail({ id }: { id: number }) {
                           <td>{formatNumber(stats[k].base)}</td>
                           <td>{formatNumber(stateMax(k))}</td>
                           {hipoCols && hipo && (
-                            <td>{formatNumber(stateMax(k) + hipoFlat)}</td>
+                            <td>{formatNumber(stateMax(k) + hipoFlat[k])}</td>
                           )}
                           {hipoCols && hipo && (
                             <td>{formatNumber(stateMax(k) + hipo[k])}</td>

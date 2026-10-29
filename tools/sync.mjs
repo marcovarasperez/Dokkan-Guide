@@ -191,21 +191,24 @@ function normalizeRecord(raw, transformationPath = []) {
   const latestType = sezaDate ? 'seza' : ezaDate ? 'eza' : initial ? 'initial' : null;
 
   // Stats: hp_init/hp_max/hp_hipo, atk_init/atk_max/atk_hipo, def_init/def_max/def_hipo
-  // hp_hipo = stats máximos con potential oculto al máximo (nivel 255)
+  // hp_hipo = stats máximos con potential oculto al 100% (nivel 255)
+  // EZA: no lo tenemos fiable en el catálogo (solo en ficha individual con growth_type).
+  // Ponemos max como placeholder; detail.ts lo recalcula si la ficha trae eza=1 y growth_type.
+  // Si no hay EZA o no hay growth_type, detail.ts devuelve max (correcto).
   const hp = {
     base: raw.hp_init ?? 0,
     max: raw.hp_max ?? 0,
-    eza: raw.hp_hipo ?? raw.hp_max ?? 0,
+    eza: raw.hp_max ?? 0,
   };
   const atk = {
     base: raw.atk_init ?? 0,
     max: raw.atk_max ?? 0,
-    eza: raw.atk_hipo ?? raw.atk_max ?? 0,
+    eza: raw.atk_max ?? 0,
   };
   const def = {
     base: raw.def_init ?? 0,
     max: raw.def_max ?? 0,
-    eza: raw.def_hipo ?? raw.def_max ?? 0,
+    eza: raw.def_max ?? 0,
   };
 
   const summary = {

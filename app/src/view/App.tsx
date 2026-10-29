@@ -22,6 +22,17 @@ import EventosView from './EventosView';
 import BabaView from './BabaView';
 import { SettingsView } from './SettingsView';
 
+/** Aplica el tema guardado (dark por defecto) al arrancar */
+function applySavedTheme(): void {
+  try {
+    const stored = localStorage.getItem('theme') as 'dark' | 'light' | null;
+    const theme = (stored === 'dark' || stored === 'light') ? stored : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+}
+
 /**
  * VISTA · Shell de la aplicación.
  *
@@ -33,6 +44,9 @@ import { SettingsView } from './SettingsView';
  *     (`controller/unitDetailController.ts`, `eventsController.ts`, …).
  */
 export default function App() {
+  // Aplicar tema al montar
+  useEffect(applySavedTheme, []);
+
   // Router por hash (#/ personajes, #/characters/{id}, #/banners, #/eventos…)
   useEffect(() => initRouter(), []);
 

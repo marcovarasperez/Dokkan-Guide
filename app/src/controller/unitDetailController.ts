@@ -508,7 +508,7 @@ export function useUnitDetail(id: number) {
     ezaSelected || sezaSelected ? stats[k].eza : stats[k].max;
 
   // Columnas 55 %/100 % del Hidden Potential (mismas fórmulas que dokkaninfo):
-  // 55 % = bonus plano según el tablero de potential (1200/2000/2800/1600,
+  // 55 % = bonus plano según el tablero de potential (por stat: hp/atk/def),
   // mapeo exacto de la fuente en constants.potentialFlatBonus); 100 % =
   // ganancias absolutas del potential.
   const hipo = viewFull?.hipoGains ?? null;

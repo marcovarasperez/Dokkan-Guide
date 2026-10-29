@@ -283,9 +283,18 @@ const statsFromCard = (c: DkCard, prev?: Stats | null): Stats => {
       prevStat && prevStat.base === base && prevStat.max === max && prevStat.eza !== max
         ? prevStat.eza
         : null;
-    if (real != null) return real;
-    // La fórmula de la fuente no cubre LR (van a SEZA) ni cartas sin EZA.
-    if (c.rarity >= 5 || c.optimal_awakening_grow_type == null) return max;
+    // Sanidad: el seed guardaba hp_hipo (100% HiPo) como "eza" → valor muy inflado.
+    // Solo confiar en el seed si su eza coincide con la fórmula EZA (±2 de tolerancia).
+    // Fórmula EZA: max + round((max - init) * 0.4839). HiPo siempre es >> EZA.
+    if (real != null) {
+      const expectedEza = ezaMax(max, base);
+      if (Math.abs(real - expectedEza) <= 2) return real; // seed fiable (datamine real)
+      // Seed corrupto (HiPo guardado como eza) → ignorar y recalcular abajo
+    }
+    // Calcular EZA solo si la unidad TIENE EZA (eza === 1) y tiene growth type.
+    // LR con SEZA pero sin EZA normal: devuelve max base.
+    // LR con EZA normal (antes de SEZA): calcula stats EZA con la fórmula.
+    if (c.eza !== 1 || c.optimal_awakening_grow_type == null) return max;
     return ezaMax(max, base);
   };
   return {

@@ -226,10 +226,7 @@ async function applyAndCacheResults(
 
   syncState.value = {
     phase: 'updated',
-    message:
-      `+${counts.newUnits} nuevas, ${counts.changedUnits} modificadas` +
-      (failed > 0 ? ` · ${failed} sin descargar` : '') +
-      (leftOver > 0 ? ` · quedan ${leftOver} pendientes` : ''),
+    message: 'Datos actualizados',
     lastSuccessAt: syncedAt,
     newUnits: counts.newUnits,
     changedUnits: counts.changedUnits,
