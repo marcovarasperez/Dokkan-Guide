@@ -1,11 +1,11 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { manualRefresh, syncState } from '../model/sync';
 import { getUpdatedAt, getUnitsForList, loadRepository } from '../model/repository';
-import { formatDate } from '../model/date';
+import { formatDateTime } from '../model/date';
 
 export function SettingsView() {
-  const [lastSync, setLastSync] = useSignal<string>('—');
-  const [unitCount, setUnitCount] = useSignal<number>(0);
+  const lastSync = useSignal<string>('—');
+  const unitCount = useSignal<number>(0);
 
   const handleRefresh = async () => {
     await manualRefresh();
@@ -15,15 +15,17 @@ export function SettingsView() {
   useSignalEffect(() => {
     syncState.value; // suscripción reactiva a cambios de sync
     const at = getUpdatedAt();
-    setLastSync(at ? formatDate(at) : 'Nunca');
+    // getUpdatedAt() devuelve epoch en MILISEGUNDOS; formatDateTime espera segundos.
+    lastSync.value = at ? formatDateTime(Math.floor(at / 1000)) : 'Nunca';
     // Actualizar contador de unidades
-    setUnitCount(getUnitsForList().length);
+    unitCount.value = getUnitsForList().length;
   });
 
   // También actualizar contador cuando se cargue el repositorio
   useSignalEffect(() => {
-    loadRepository(); // solo para suscribirse a la carga
-    setUnitCount(getUnitsForList().length);
+    void loadRepository().then(() => {
+      unitCount.value = getUnitsForList().length;
+    });
   });
 
   return (
@@ -39,11 +41,11 @@ export function SettingsView() {
         <div class="settings-info">
           <div class="info-row">
             <span>Última sincronización</span>
-            <span>{lastSync}</span>
+            <span>{lastSync.value}</span>
           </div>
           <div class="info-row">
             <span>Personajes en lista</span>
-            <span>{unitCount || '—'}</span>
+            <span>{unitCount.value || '—'}</span>
           </div>
           <div class="info-row">
             <span>Estado</span>
