@@ -168,10 +168,16 @@ function normalizeRecord(raw, transformationPath = []) {
   const typeMap = { '0': 'AGL', '1': 'TEQ', '2': 'INT', '3': 'STR', '4': 'PHY' };
   const type = typeMap[String(raw.bg_element ?? raw.element[0])] ?? 'AGL';
 
-  // Clase (Super/Extreme) - no viene en el catálogo, usamos Super por defecto
-  // raw_attributes: [1]=Super, [2]=Extreme (verificar)
-  const classMap = { 1: 'Super', 2: 'Extreme' };
-  const cls = (raw.raw_attributes?.[0] && classMap[raw.raw_attributes[0]]) ?? 'Super';
+  // Clase (Super/Extreme) — SOLO desde dokkaninfo.com (element[0]).
+  // element = "10" (Super AGL), "21" (Extreme TEQ), "13" (Super STR), etc.
+  // Dígito 0: 1=Super, 2=Extreme. "0" = pre-despertar → se salta.
+  const el = String(raw.element ?? '');
+  const classDigit = el[0];
+  if (classDigit !== '1' && classDigit !== '2') {
+    console.log(`[sync] Saltando unidad sin clase válida (element=${raw.element}): ${raw.id} (${raw.name})`);
+    return null;
+  }
+  const cls = classDigit === '2' ? 'Extreme' : 'Super';
 
   // Fechas: open_at = lanzamiento inicial, eza_open_at = EZA, seza_open_at = SEZA.
   // Validadas con `epoch` para que `false`/0/sentinelas no arruinen `latest`
@@ -310,15 +316,19 @@ async function main() {
 
   // 3) Normalizar: UNA unidad por carta calificada (misma regla que el widget
   //    de dokkaninfo). El grupo name+tipo solo aporta el transformationPath.
+  //    Unidades sin raw_attributes válido (estatuas, items) devuelven null y se filtran.
   const units = [];
+  let skipped = 0;
   for (const r of kept) {
     const group = nameTypeGroups.get(groupKeyOf(r)) ?? [r];
     const transformationPath = buildTransformationPath([...group], r.id);
-    const { summary, detail, hash } = normalizeRecord(r, transformationPath);
+    const normalized = normalizeRecord(r, transformationPath);
+    if (!normalized) { skipped++; continue; }
+    const { summary, detail, hash } = normalized;
     summary.linkNames = summary.linkIds.map((id) => linkNames[id] ?? `#${id}`);
     units.push({ summary, detail, hash });
   }
-  console.log(`[sync] ${units.length} unidades para el índice.`);
+  console.log(`[sync] ${units.length} unidades para el índice (saltadas ${skipped} sin clase válida).`);
 
   // 4) Comparar con seed anterior
   const metaPath = join(OUT_DIR, 'meta.json');
