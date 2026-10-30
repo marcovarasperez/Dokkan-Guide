@@ -131,7 +131,23 @@ const epoch = (v) => (typeof v === 'number' && v > 0 && v < TIME_SENTINEL ? Math
 function widgetRuleReason(r, catalogIds, nowSec) {
   const open = r.open_at ?? 0;
   if (!(open > 0 && open < nowSec)) return 'open_at futuro/sentinel';
-  if ((r.awoken_max ?? 0) < 1) return 'aw0 (pre-despertar)';
+  // Solo exigir awoken_max >= 1 para rareza >= 3 (SSR+).
+  // Las cartas N/R/SR no tienen despertares y pasarían aw0.
+  const rarity = Number(r.rarity ?? 0);
+  if (rarity >= 3 && (r.awoken_max ?? 0) < 1) return 'aw0 (pre-despertar)';
+  if (Number(r.id) >= 4000000) return 'id>=4M (transformación)';
+  const icon = r.icon_id ?? r.id;
+  if (icon !== r.id && catalogIds.has(icon)) return 'variante (icono apunta a otra fila)';
+  return null;
+}
+
+/** Filtros básicos de validez (para la semilla completa, SIN awoken_max).
+ *  Mantiene: open_at válida, no transformación, no variante sin página propia.
+ *  Elimina la regla awoken_max para incluir TODOS los despertares (SSR, UR, LR).
+ */
+function basicValidityReason(r, catalogIds, nowSec) {
+  const open = r.open_at ?? 0;
+  if (!(open > 0 && open < nowSec)) return 'open_at futuro/sentinel';
   if (Number(r.id) >= 4000000) return 'id>=4M (transformación)';
   const icon = r.icon_id ?? r.id;
   if (icon !== r.id && catalogIds.has(icon)) return 'variante (icono apunta a otra fila)';
@@ -161,23 +177,35 @@ function buildTransformationPath(records, finalFormId) {
 function normalizeRecord(raw, transformationPath = []) {
   // Mapeo de rareza numérica a texto (dokkaninfo usa: 3=SSR, 4=UR, 5=LR, 2=SR, 1=R, 0=N)
   const rarityMap = { 0: 'N', 1: 'R', 2: 'SR', 3: 'SSR', 4: 'UR', 5: 'LR' };
-  const rarity = rarityMap[raw.rarity] ?? 'UR';
+  const rarityNum = Number(raw.rarity ?? 0);
+  const rarity = rarityMap[rarityNum] ?? 'UR';
 
   // Mapeo de tipo: usar bg_element directamente (0=AGL, 1=TEQ, 2=INT, 3=STR, 4=PHY)
   // El campo element parece ser variante/etapa, no el tipo real
   const typeMap = { '0': 'AGL', '1': 'TEQ', '2': 'INT', '3': 'STR', '4': 'PHY' };
   const type = typeMap[String(raw.bg_element ?? raw.element[0])] ?? 'AGL';
 
-  // Clase (Super/Extreme) — SOLO desde dokkaninfo.com (element[0]).
+  // Clase (Super/Extreme) — desde dokkaninfo.com (element[0]).
   // element = "10" (Super AGL), "21" (Extreme TEQ), "13" (Super STR), etc.
-  // Dígito 0: 1=Super, 2=Extreme. "0" = pre-despertar → se salta.
+  // Dígito 0: 1=Super, 2=Extreme. "0" = pre-despertar.
   const el = String(raw.element ?? '');
   const classDigit = el[0];
-  if (classDigit !== '1' && classDigit !== '2') {
+  let cls;
+  if (classDigit === '1' || classDigit === '2') {
+    cls = classDigit === '2' ? 'Extreme' : 'Super';
+  } else if (transformationPath.length > 0) {
+    // Sin clase válida (element=00, 01, 03, etc.): inferir de la forma final en transformationPath.
+    // Esto cubre pre-despertares de cualquier rareza (SSR base, UR base, etc.).
+    const finalForm = transformationPath.find(t => t.isFinal) || transformationPath[transformationPath.length - 1];
+    if (finalForm && (finalForm.rarity === 4 || finalForm.rarity === 5)) {
+      cls = 'Super'; // fallback; la forma final UR/LR define la clase real en su propio registro
+    } else {
+      cls = 'Super'; // fallback
+    }
+  } else {
     console.log(`[sync] Saltando unidad sin clase válida (element=${raw.element}): ${raw.id} (${raw.name})`);
     return null;
   }
-  const cls = classDigit === '2' ? 'Extreme' : 'Super';
 
   // Fechas: open_at = lanzamiento inicial, eza_open_at = EZA, seza_open_at = SEZA.
   // Validadas con `epoch` para que `false`/0/sentinelas no arruinen `latest`
@@ -277,35 +305,37 @@ async function main() {
     throw new Error('No se pudo extraer cardsjson del catálogo');
   }
 
-  // Filtrar solo unidades válidas (rarity ≥ 3 = SSR+, sin stubs 9xxxxxx)
+  // Filtrar solo unidades válidas (todas las rarezas, sin stubs 9xxxxxx)
   const records = cardsJson.filter((r) => {
     const rarity = Number(r.rarity ?? 0);
     const id = Number(r.id ?? 0);
-    return rarity >= 3 && id > 0 && !String(id).startsWith('9');
+    return rarity >= 0 && id > 0 && !String(id).startsWith('9');
   });
-  console.log(`[sync] Filtradas ${records.length} unidades SSR+ del catálogo.`);
+  console.log(`[sync] Filtradas ${records.length} unidades de todas las rarezas del catálogo.`);
 
-  // Reglas del widget "Most Recent Cards": una unidad por carta calificada,
-  // sin formas pre-despertar, estados transformados ni variantes sin página propia.
+  // Filtros básicos de validez (sin la regla awoken_max del widget):
+  // - open_at publicada y no futura
+  // - no transformación (id < 4M)
+  // - no variante sin página propia (icon_id apunta a otra ficha del catálogo)
   const catalogIds = new Set(cardsJson.map((r) => Number(r.id)));
   const nowSec = Date.now() / 1000;
   const discardCounts = {};
-  const kept = [];
+  const validCards = [];
   for (const r of records) {
-    const why = widgetRuleReason(r, catalogIds, nowSec);
+    const why = basicValidityReason(r, catalogIds, nowSec);
     if (why) discardCounts[why] = (discardCounts[why] ?? 0) + 1;
-    else kept.push(r);
+    else validCards.push(r);
   }
-  console.log(`[sync] Reglas del widget: ${kept.length} cartas calificadas · descartes ${JSON.stringify(discardCounts)}`);
+  console.log(`[sync] Filtros básicos: ${validCards.length} cartas válidas · descartes ${JSON.stringify(discardCounts)}`);
 
   // Mapeo de tipo: bg_element (0=AGL, 1=TEQ, 2=INT, 3=STR, 4=PHY)
   const typeMap = { '0': 'AGL', '1': 'TEQ', '2': 'INT', '3': 'STR', '4': 'PHY' };
 
-  // Agrupar por name + type (solo para construir el transformationPath de cada ficha)
+  // Agrupar por name + type para construir transformationPath
   const typeOf = (r) => typeMap[String(r.bg_element ?? r.element[0])] ?? 'AGL';
   const groupKeyOf = (r) => r.name + '|' + typeOf(r);
   const nameTypeGroups = new Map();
-  for (const r of records) {
+  for (const r of validCards) {
     const key = groupKeyOf(r);
     if (!nameTypeGroups.has(key)) nameTypeGroups.set(key, []);
     nameTypeGroups.get(key).push(r);
@@ -317,19 +347,21 @@ async function main() {
   // Para la semilla, usamos un mapa vacío y la app los resuelve en runtime.
   const linkNames = {};
 
-  // 3) Normalizar: UNA unidad por carta calificada (misma regla que el widget
-  //    de dokkaninfo). El grupo name+tipo solo aporta el transformationPath.
-  //    Unidades sin raw_attributes válido (estatuas, items) devuelven null y se filtran.
+  // 3) Normalizar: TODAS las unidades válidas de cada grupo (no solo la "calificada").
+  //    Así aparecen todos los despertares (SSR, UR, LR) de cada personaje.
   const units = [];
   let skipped = 0;
-  for (const r of kept) {
-    const group = nameTypeGroups.get(groupKeyOf(r)) ?? [r];
-    const transformationPath = buildTransformationPath([...group], r.id);
-    const normalized = normalizeRecord(r, transformationPath);
-    if (!normalized) { skipped++; continue; }
-    const { summary, detail, hash } = normalized;
-    summary.linkNames = summary.linkIds.map((id) => linkNames[id] ?? `#${id}`);
-    units.push({ summary, detail, hash });
+  for (const [, group] of nameTypeGroups) {
+    // Ordenar grupo por rareza ascendente para transformationPath coherente
+    const sortedGroup = [...group].sort((a, b) => Number(a.rarity ?? 0) - Number(b.rarity ?? 0));
+    for (const r of sortedGroup) {
+      const transformationPath = buildTransformationPath(sortedGroup, r.id);
+      const normalized = normalizeRecord(r, transformationPath);
+      if (!normalized) { skipped++; continue; }
+      const { summary, detail, hash } = normalized;
+      summary.linkNames = summary.linkIds.map((id) => linkNames[id] ?? `#${id}`);
+      units.push({ summary, detail, hash });
+    }
   }
   console.log(`[sync] ${units.length} unidades para el índice (saltadas ${skipped} sin clase válida).`);
 

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'preact/hooks';
-import type { UnitClass, UnitRarity, UnitType } from '../model/types';
+import type { UnitClass, UnitRarity, UnitType, UnitSummary } from '../model/types';
 import { TYPE_COLORS, CLASS_COLORS, RARITY_COLORS } from '../model/adapter';
 import type { CategoryEntry } from '../model/wiki';
 
@@ -8,7 +8,7 @@ const CLASSES: { key: UnitClass; label: string }[] = [
   { key: 'Super', label: 'Súper' },
   { key: 'Extreme', label: 'Extremo' },
 ];
-const RARITIES: UnitRarity[] = ['N', 'R', 'SR', 'SSR', 'UR', 'LR'];
+const ALL_RARITIES: UnitRarity[] = ['N', 'R', 'SR', 'SSR', 'UR', 'LR'];
 
 /** Criterios de orden estilo lista de personajes del juego. */
 const SORT_OPTIONS: { key: string; label: string }[] = [
@@ -69,6 +69,9 @@ export default function FilterBar(props: FilterBarProps) {
   const activeCount = selectedTypes.length + selectedClasses.length + selectedRarities.length + selectedCategories.length;
 
   const sortOption = SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Última novedad';
+
+  // Always show all rarities (N, R, SR, SSR, UR, LR) so user can filter by any rarity
+  const availableRarities = ALL_RARITIES;
 
   // Filtrar categorías por búsqueda
   const filteredCategories = useMemo(() =>
@@ -190,7 +193,7 @@ export default function FilterBar(props: FilterBarProps) {
           <fieldset class="filter-bar__section">
             <legend class="filter-bar__legend">Rareza</legend>
             <div class="filter-bar__chips" role="group" aria-label="Filtrar por rareza">
-              {RARITIES.map((r) => {
+              {availableRarities.map((r) => {
                 const on = selectedRarities.includes(r);
                 const color = RARITY_COLORS[r];
                 return (
