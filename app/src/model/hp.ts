@@ -1,5 +1,6 @@
 import type { UnitSummary, UnitType } from './types';
 import type { UnitFull } from './detail';
+import { INFO_ASSET } from './constants';
 
 /**
  * CALCULADORA DE HIDDEN POTENTIAL (Global).
@@ -87,11 +88,11 @@ export const SKILL_LABEL: Record<keyof HpLevels, string> = {
   evasion: 'Evasión',
 };
 
-/** Iconos oficiales del CDN (hotlink, sin redistribución): 01 Combo/Adicional, 02 Crítico, 03 Evasión. */
+/** Iconos oficiales del árbol de assets de la fuente (hotlink, sin redistribución): 01 Combo/Adicional, 02 Crítico, 03 Evasión. */
 export const SKILL_ICON: Record<keyof HpLevels, string> = {
-  additional: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_01_off.png',
-  critical: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_02_off.png',
-  evasion: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_03_off.png',
+  additional: `${INFO_ASSET}/outgame/extension/potential/pot_skill_01_off.png`,
+  critical: `${INFO_ASSET}/outgame/extension/potential/pot_skill_02_off.png`,
+  evasion: `${INFO_ASSET}/outgame/extension/potential/pot_skill_03_off.png`,
 };
 
 /**
@@ -100,9 +101,9 @@ export const SKILL_ICON: Record<keyof HpLevels, string> = {
  * variante …_off.png en gris.
  */
 export const SKILL_ICON_ON: Record<keyof HpLevels, string> = {
-  additional: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_01_on.png',
-  critical: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_02_on.png',
-  evasion: 'https://cdn.dokkan.fyi/assets/en/outgame/extension/pot_skill_03_on.png',
+  additional: `${INFO_ASSET}/outgame/extension/potential/pot_skill_01_on.png`,
+  critical: `${INFO_ASSET}/outgame/extension/potential/pot_skill_02_on.png`,
+  evasion: `${INFO_ASSET}/outgame/extension/potential/pot_skill_03_on.png`,
 };
 
 /* ---------- Afinidad ---------- */

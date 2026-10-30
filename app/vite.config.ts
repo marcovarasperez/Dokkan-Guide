@@ -2,10 +2,10 @@ import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import { spawn } from 'node:child_process';
 
-// Fan project. Los datos viven en dokkaninfo.com (fetch en caliente con
-// transporte nativo en el empaquetado); el arte de las unidades (thumbnails,
-// marcos, iconos) se sirve en caliente desde el CDN de assets para que el
-// WebView lo cachee. Nada de eso se redistribuye en el bundle.
+// Fan project. Los datos y el arte viven en dokkaninfo.com (fetch en caliente
+// con transporte nativo en el empaquetado; <img> en directo con `referrer:
+// no-referrer`, ver index.html) para que el WebView lo cachee. Nada de eso se
+// redistribuye en el bundle.
 
 const INFO_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
@@ -87,8 +87,6 @@ export default defineConfig({
   plugins: [
     preact(),
     curlProxy('/dinfo', 'https://dokkaninfo.com'),
-    // Respaldo dokkan.fyi (páginas Inertia HTML+JSON, sin CORS) — solo dev.
-    curlProxy('/dfyi', 'https://dokkan.fyi'),
   ],
   server: {
     host: true,

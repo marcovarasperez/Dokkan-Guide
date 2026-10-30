@@ -65,7 +65,8 @@ export type View =
   | 'events'
   | 'baba'
   | 'categories'
-  | 'settings';
+  | 'settings'
+  | 'recent';
 
 /** Vista activa derivada de la ruta (el orden importa: lo más específico gana). */
 export const view = computed<View>(() => {
@@ -77,6 +78,7 @@ export const view = computed<View>(() => {
   if (route.value.startsWith('#/baba')) return 'baba';
   if (route.value.startsWith('#/categorias')) return 'categories';
   if (route.value.startsWith('#/ajustes')) return 'settings';
+  if (route.value.startsWith('#/recientes')) return 'recent';
   return detailId.value !== null ? 'detail' : 'list';
 });
 
@@ -89,5 +91,9 @@ export function initRouter(): () => void {
     route.value = location.hash;
   };
   addEventListener('hashchange', onHash);
+  // Al cargar, si no hay hash, ir a Recientes
+  if (!location.hash) {
+    location.hash = '#/recientes';
+  }
   return () => removeEventListener('hashchange', onHash);
 }

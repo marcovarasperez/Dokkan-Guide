@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Guía fan de personajes de DBZ Dokkan Battle (Global) con Hidden Potential óptimo. Proyecto no comercial. Datos: DOKKAN.FYI" />
+    <!-- Cloudflare de dokkaninfo devuelve 403 a las peticiones con Referer
+         ajeno (hotlink), lo que rompe los <img> de arte e iconos: sin
+         referrer la fuente responde 200 con el PNG y el WebView lo cachea. -->
+    <meta name="referrer" content="no-referrer" />
+    <meta name="description" content="Guía fan de personajes de DBZ Dokkan Battle (Global) con Hidden Potential óptimo. Proyecto no comercial. Datos: DOKKANINFO.COM" />
     <title>Dokkan Fan Guide — Personajes (Global)</title>
   </head>
   <body>

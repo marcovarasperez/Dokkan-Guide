@@ -5,11 +5,8 @@
 /** CDN base de dokkaninfo.com */
 export const INFO_CDN = 'https://dokkaninfo.com';
 
-/** Ruta de assets global/en de dokkaninfo */
+/** Ruta de assets global/en de dokkaninfo (datos, arte e iconos) */
 export const INFO_ASSET = `${INFO_CDN}/assets/global/en`;
-
-/** CDN de assets del juego (fyi) para paths que no responden en dokkaninfo */
-export const CDN_ASSET = 'https://cdn.dokkan.fyi/assets/en';
 
 /** Nombre de la base de datos IndexedDB */
 export const DB_NAME = 'dk-detail';
@@ -72,8 +69,8 @@ export const SYNC_META_KEY = 'sync';
  *
  * Cada tablero (potential_board_id) define una distribución distinta de nodos
  * y, por tanto, bonus planos distintos para HP, ATK y DEF al 55 %.
- * Mapeo basado en la tabla `potential_boards` del datamine del juego y verificado
- * contra la columna "+55 %" de dokkaninfo.com.
+ * Mapeo basado en la tabla `potential_boards` del propio juego (dump del cliente) y
+ * verificado contra la columna "+55 %" de dokkaninfo.com.
  *
  * Familias de tablero (rangos de ID):
  *  - 10–14: Estándar/Equilibrado

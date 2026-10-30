@@ -10,8 +10,8 @@ import { INFO_CDN } from './constants';
 /**
  * Contenido del juego (sección Eventos, con sub-pestañas) y Tienda de Baba.
  *
- * Fase 9: TODA la información vive en dokkaninfo.com (dokkan.fyi ya no es
- * fuente). Los listados de eventos salen de /events/{type} (eventjson o filas
+ * Fase 9: TODA la información vive en dokkaninfo.com (fuente única). Los
+ * listados de eventos salen de /events/{type} (eventjson o filas
  * SSR según el tipo); el detalle de cada evento (niveles, etapas, STA, drops
  * con iconos) se descarga al expandirlo y se cachea en la BD local.
  *

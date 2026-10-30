@@ -6,7 +6,7 @@
  * "¿Dónde conseguirlo?" de la ficha de personaje (sin tener que recorrer
  * todos los detalle de eventos en cada arranque).
  *
- * Fuente y formato (espejo de app/src/data/dinfo.ts, verificado con probes):
+ * Fuente y formato (espejo de app/src/model/dinfo.ts, verificado con probes):
  *  - Listados: /events/{type} → v-bind:eventjson (limited/story/growth/
  *    challenge/bonus, con fechas) o filas SSR <a href=/events/T/N> (quest,
  *    dbstories — permanentes).

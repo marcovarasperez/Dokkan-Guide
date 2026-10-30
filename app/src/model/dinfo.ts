@@ -2,7 +2,7 @@ import { decodeEntities } from './html';
 import type { SkillText } from './types';
 import { rarityFromCode } from './adapter';
 import { parseEpoch } from './date';
-import { INFO_CDN, INFO_ASSET, CDN_ASSET } from './constants';
+import { INFO_CDN, INFO_ASSET } from './constants';
 
 /**
  * Primitivas de dokkaninfo.com: la única fuente viva de la app (Fase 9).
@@ -12,14 +12,11 @@ import { INFO_CDN, INFO_ASSET, CDN_ASSET } from './constants';
  * (/api/banners). Todas las funciones de este módulo son parseadores puros
  * sobre el HTML descargado por http.ts (transporte nativo con UA).
  *
- * Mapeos clave (verificados con matrices fyi-seed × dokkaninfo, 1458 muestras,
- * conflictos = 0):
+ * Mapeos clave (verificados contra la fuente, 1458 muestras, conflictos = 0):
  *  - `element` = clase*10 + tipo → dígito 2: 0=AGL 1=TEQ 2=INT 3=STR 4=PHY;
  *    dígito 1: 1=Super, 2=Extreme (0 → 'Super' por defecto).
  *  - `rarity` numérica: 0=N 1=R 2=SR 3=SSR 4=UR 5=LR.
  */
-
-/** CDN de assets del juego (thumbs, marcos… y los "listbutton" de eventos). */
 
 /* ------------------------------------------------------------------ *
  *  v-bind extraction
@@ -55,14 +52,49 @@ function extractVBind<T>(html: string, name: string): T | null {
  */
 const infoAssetUrl = (path: string): string => {
   const p = String(path).trim().replace(/^\/+/, '');
+  const legacy = legacyAssetUrl(p);
+  if (legacy) return legacy;
   if (/^https?:\/\//i.test(p)) return p;
   if (p.startsWith('//')) return `https:${p}`;
   if (p.startsWith('assets/global/en/')) return `${INFO_CDN}/${p}`;
-  // `banners/en/event/eve_listbutton/…` (imágenes de lista de eventos) no
-  // publica dokkaninfo — dan 404 en su /assets/global — pero sí responden
-  // en el CDN de assets, así que ahí se resuelven.
-  if (p.startsWith('banners/')) return `${CDN_ASSET}/${p}`;
+  // `banners/…` (imágenes de noticias, eventos y banners de summon): la raíz
+  // de /assets/global de dokkaninfo da 404; la fuente las publica bajo
+  // `ingame/news/`, `ingame/events/` e `ingame/banners/` (verificado con md5
+  // en oct-2026) — ver `infoBannersUrl`.
+  if (p.startsWith('banners/')) return infoBannersUrl(p);
   return `${INFO_ASSET}/${p}`;
+};
+
+/**
+ * Rutas `banners/…` (imbebidas por la fuente en datos vivos y semillas
+ * antiguas) → dónde las publica dokkaninfo. Reglas verificadas con bytes
+ * reales en oct-2026:
+ *  - `banners/en/news/<f>` → `ingame/news/<f>` (bytes idénticos);
+ *  - `banners/en/event/<dir>/<f>` (eve_listbutton, eve_header…) →
+ *    `ingame/events/<f>` (imagen real que usa la propia fuente);
+ *  - el resto (`banners/en/gashasocool/<f>`, etc.) → `ingame/banners/<f>`
+ *    SOLO con el nombre de fichero (bytes idénticos).
+ */
+const infoBannersUrl = (p: string): string => {
+  const news = p.match(/^banners\/en\/news\/(.+)$/);
+  if (news) return `${INFO_ASSET}/ingame/news/${news[1]}`;
+  const ev = p.match(/^banners\/en\/event\/[^/]+\/(.+)$/);
+  if (ev) return `${INFO_ASSET}/ingame/events/${ev[1]}`;
+  const file = p.slice(p.lastIndexOf('/') + 1);
+  return `${INFO_ASSET}/ingame/banners/${file}`;
+};
+
+/**
+ * La fuente aún embebe en sus datos vivos (`banner` de /news y /summons)
+ * URLs absolutas del antiguo CDN de assets. Se traducen a su equivalente
+ * aquí para que la app solo hable con dokkaninfo.com.
+ * Devuelve `null` si la URL no es de ese CDN.
+ */
+const legacyAssetUrl = (url: string): string | null => {
+  const legacy = 'https://cdn.dokkan.fyi/assets/en/';
+  if (!url.startsWith(legacy)) return null;
+  const rel = url.slice(legacy.length);
+  return rel.startsWith('banners/') ? infoBannersUrl(rel) : `${INFO_ASSET}/${rel}`;
 };
 
 /**
@@ -72,6 +104,8 @@ const infoAssetUrl = (path: string): string => {
  */
 const infoRootUrl = (path: string): string => {
   const p = String(path).trim();
+  const legacy = legacyAssetUrl(p);
+  if (legacy) return legacy;
   if (/^https?:\/\//i.test(p)) return p;
   if (p.startsWith('//')) return `https:${p}`;
   return `${INFO_CDN}/${p.replace(/^\/+/, '')}`;

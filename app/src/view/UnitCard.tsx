@@ -1,11 +1,13 @@
 import type { TargetedEvent } from 'preact';
 import type { UnitSummary } from '../model/types';
 import { freshIds } from '../model/repository';
-import { frameUrl, thumbUrl, typeIconUrl, rarityIconUrl, TYPE_COLORS } from '../model/adapter';
+import { frameUrl, thumbUrl, typeIconUrl, rarityIconUrl } from '../model/adapter';
 
-/** Variante .avif de una URL .png del CDN. */
-const avif = (url: string): string => url.replace(/\.png$/i, '.avif');
-
+/**
+ * Nota: no se usa `<picture>` con variante `.avif` — la fuente solo publica
+ * `.png` (el `.avif` devolvía 404 y la tarjeta se quedaba sin arte). Cloudflare
+ * de dokkaninfo ya negocia WebP solo por la cabecera `Accept`.
+ */
 /** Imagen rota → oculta; el marco de color de la celda hace de fallback. */
 const hideBroken = (e: TargetedEvent<HTMLImageElement, Event>): void => {
   e.currentTarget.classList.add('img-broken');
@@ -19,7 +21,6 @@ export type UnitCardData = Pick<
 
 /** Celda del listado: arte + marco + iconos, replicando la composición del juego. */
 export default function UnitCard({ unit }: { unit: UnitCardData }) {
-  const color = TYPE_COLORS[unit.type] ?? '#555';
   const frame = frameUrl(unit.type, unit.rarity);
   const thumb = thumbUrl(unit.thumbnailId);
   const badge = unit.hasSeza ? 'SEZA' : unit.hasEza ? 'EZA' : null;
@@ -29,13 +30,14 @@ export default function UnitCard({ unit }: { unit: UnitCardData }) {
   return (
     <article class="unit-card" title={unit.name}>
       <a class="unit-card__link" href={`#/characters/${unit.id}`} aria-label={`Ver ficha de ${unit.name}`}></a>
-      <div class="unit-card__art" style={{ background: color }}>
+      <div class="unit-card__art">
         {fresh && <span class="unit-card__badge unit-card__badge--new">NUEVA</span>}
         {badge && (
           <span class={`unit-card__badge unit-card__badge--${badge.toLowerCase()}`}>{badge}</span>
         )}
-        <picture class="unit-card__frame">
-          <source srcset={avif(frame)} type="image/avif" />
+        {/* Contenedores div (no <picture>): el CSS escala el img dentro
+            (.unit-card__frame img / .unit-card__thumb img). */}
+        <div class="unit-card__frame">
           <img
             src={frame}
             width={120}
@@ -45,9 +47,8 @@ export default function UnitCard({ unit }: { unit: UnitCardData }) {
             draggable={false}
             onError={hideBroken}
           />
-        </picture>
-        <picture class="unit-card__thumb">
-          <source srcset={avif(thumb)} type="image/avif" />
+        </div>
+        <div class="unit-card__thumb">
           <img
             src={thumb}
             width={150}
@@ -58,7 +59,7 @@ export default function UnitCard({ unit }: { unit: UnitCardData }) {
             draggable={false}
             onError={hideBroken}
           />
-        </picture>
+        </div>
         <img
           class="unit-card__type-icon"
           src={typeIconUrl(unit.type, unit.class)}

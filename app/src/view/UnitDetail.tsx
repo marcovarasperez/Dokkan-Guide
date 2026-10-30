@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import { SKILL_LABEL, SKILL_ICON, SKILL_ICON_ON } from '../model/hp';
 import { thumbUrl, fullArtUrl } from '../model/adapter';
 import { formatDate, formatNumber } from '../model/format';
@@ -16,10 +17,13 @@ const stateLabel = (k: 'base' | 'eza' | 'seza'): string =>
   k === 'base' ? 'Normal' : k === 'eza' ? 'EZA' : 'SEZA';
 
 /** Sección estándar del detalle (estilo dokkaninfo). */
-function Section({ title, children }: { title: string; children: preact.ComponentChildren }) {
+function Section({ title, children, onTitleClick, expanded }: { title: string; children: preact.ComponentChildren; onTitleClick?: () => void; expanded?: boolean }) {
   return (
     <section class="detail-section">
-      <h3 class="detail-section__title">{title}</h3>
+      <h3 class="detail-section__title" onClick={onTitleClick} style={onTitleClick ? { cursor: 'pointer' } : undefined}>
+        {title}
+        {onTitleClick && <span class={`detail-section__chevron${expanded ? ' detail-section__chevron--open' : ''}`} aria-hidden="true">▼</span>}
+      </h3>
       <div class="detail-section__body">{children}</div>
     </section>
   );
@@ -354,23 +358,20 @@ export default function UnitDetail({ id }: { id: number }) {
             </section>
           )}
 
-          <Section
-            title={
-              ezaSelected
+          {(() => {
+              const hipoCols = !!hipo && (viewRarity === 'UR' || viewRarity === 'LR');
+              const [showHipoNote, setShowHipoNote] = useState(false);
+              const statsTitle = ezaSelected
                 ? 'Stats (estado EZA)'
                 : sezaSelected
                   ? 'Stats (estado SEZA)'
                   : !viewingForm && stateChips.length > 0
                     ? 'Stats (estado Normal)'
-                    : 'Stats'
-            }
-          >
-            {/* Columnas 55 %/100 %: solo UR/LR (dokkaninfo no las muestra en
-                rareza ≤ 3, `rarity>3` en su bundle). */}
-            {(() => {
-              const hipoCols = !!hipo && (viewRarity === 'UR' || viewRarity === 'LR');
+                    : 'Stats';
               return (
-                <>
+                <Section title={statsTitle} onTitleClick={() => setShowHipoNote(!showHipoNote)} expanded={showHipoNote}>
+                  {/* Columnas 55 %/100 %: solo UR/LR (dokkaninfo no las muestra en
+                      rareza ≤ 3, `rarity>3` en su bundle). */}
                   <table class="stats-table">
                     <thead>
                       <tr>
@@ -397,7 +398,7 @@ export default function UnitDetail({ id }: { id: number }) {
                       ))}
                     </tbody>
                   </table>
-                  {hipoCols && (
+                  {hipoCols && showHipoNote && (
                     <p class="skill-note">
                       Hidden Potential: 55 % = máx. del estado + bonus plano del
                       tablero de potential; 100 % = máx. + ganancias completas del
@@ -407,14 +408,13 @@ export default function UnitDetail({ id }: { id: number }) {
                   {(ezaSelected || sezaSelected) && (
                     <p class="skill-note">
                       {ezaSelected
-                        ? 'Stats EZA: datamine de dokkan.fyi cuando existe; si no, fórmula de dokkaninfo (máx. + 48,39 % del margen min→máx), válida solo para rareza < 5.'
-                        : 'Stats SEZA: datamine de dokkan.fyi cuando existe; si no, máx. base (dokkaninfo no publica stats SEZA y su fórmula no cubre LR).'}
+                        ? 'Stats EZA: fórmula de dokkaninfo (máx. + 48,39 % del margen min→máx), válida solo para rareza < 5 (LR usa máx. base).'
+                        : 'Stats SEZA: dokkaninfo no publica stats SEZA y su fórmula no cubre LR → se muestra máx. base.'}
                     </p>
                   )}
-                </>
+                </Section>
               );
             })()}
-          </Section>
         </div>
 
         {/* Columna principal: habilidades + relaciones */}

@@ -21,6 +21,7 @@ import BannerDetail from './BannerDetail';
 import EventosView from './EventosView';
 import BabaView from './BabaView';
 import { SettingsView } from './SettingsView';
+import RecentView from './RecentView';
 
 /** Aplica el tema guardado (dark por defecto) al arrancar */
 function applySavedTheme(): void {
@@ -62,6 +63,11 @@ export default function App() {
     onToggleClass,
     selectedRarities,
     onToggleRarity,
+    selectedCategories,
+    onToggleCategory,
+    categoryFilterMode,
+    onToggleCategoryMode,
+    categoriesIndex,
     onClear,
     sortBy,
     onSortBy,
@@ -81,7 +87,9 @@ export default function App() {
       <div class="app-top">
         <Header view={currentView} />
       </div>
-      {currentView === 'news' ? (
+      {currentView === 'recent' ? (
+        <RecentView />
+      ) : currentView === 'news' ? (
         newsDetail !== null ? <NewsDetail id={newsDetail} /> : <NewsView />
       ) : currentView === 'bannerDetail' && bannerDetail !== null ? (
         <BannerDetail id={bannerDetail} units={units} />
@@ -116,6 +124,11 @@ export default function App() {
             onToggleClass={onToggleClass}
             selectedRarities={selectedRarities}
             onToggleRarity={onToggleRarity}
+            selectedCategories={selectedCategories}
+            onToggleCategory={onToggleCategory}
+            categoryFilterMode={categoryFilterMode}
+            onToggleCategoryMode={onToggleCategoryMode}
+            categoriesIndex={categoriesIndex}
             sortBy={sortBy}
             onSortBy={onSortBy}
             onClear={onClear}

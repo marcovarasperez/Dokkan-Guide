@@ -15,8 +15,8 @@ const labelUrl = (id: number): string =>
  * Explorador de CATEGORÍAS (estilo wiki): la lista completa y, al entrar en
  * una categoría, sus LÍDERES (con el boost de su leader skill) y sus
  * PERSONAJES, cada uno con enlace a su ficha. Datos de la semilla local
- * generada por tools/wiki_sync.mjs (categorías desde dokkan.fyi — dokkaninfo.com
- * no expone esta API) + etiquetas oficiales de dokkaninfo. Se llega desde las
+ * generada por tools/categories_sync.mjs (categorías scrapeadas de /cards/{id}
+ * de dokkaninfo.com) + etiquetas oficiales de dokkaninfo. Se llega desde las
  * chips de la ficha o desde Filtros.
  *
  * Toda la lógica vive en `controller/categoryController.ts`

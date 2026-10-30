@@ -267,11 +267,10 @@ const inflight = new Map<number, Promise<UnitFull>>();
  * dokkaninfo calcula el EZA en cliente con `max + round((max − init) × 0.4839)`
  * (su columna "EZA B. Max") y SOLO la pinta para rareza < 5 (`rarity<5` en su
  * bundle): para LR la fórmula se desvía hasta +8145 HP del valor real (medido
- * contra el datamine: UR difiere ≤ 2, LR difiere en 366/366 stats), así que
- * ahí solo vale el datamine de dokkan.fyi y, si no existe, se conserva el
- * máx. base en lugar de inventar una cifra.
+ * contra los stats reales del cliente), así que para LR se conserva el máx. base
+ * en lugar de inventar una cifra.
  *
- * `prev` son los stats que ya se conocían (semilla/datamine): se usan solo si
+ * `prev` son los stats que ya se conocían (semilla local): se usan solo si
  * siguen correspondiendo a esa misma carta (mismo base/máx.) y aportan un
  * valor real (eza ≠ máx.).
  */
@@ -288,7 +287,7 @@ const statsFromCard = (c: DkCard, prev?: Stats | null): Stats => {
     // Fórmula EZA: max + round((max - init) * 0.4839). HiPo siempre es >> EZA.
     if (real != null) {
       const expectedEza = ezaMax(max, base);
-      if (Math.abs(real - expectedEza) <= 2) return real; // seed fiable (datamine real)
+      if (Math.abs(real - expectedEza) <= 2) return real; // seed fiable (valor real)
       // Seed corrupto (HiPo guardado como eza) → ignorar y recalcular abajo
     }
     // Calcular EZA solo si la unidad TIENE EZA (eza === 1) y tiene growth type.
@@ -338,7 +337,7 @@ export function summaryFromCardPage(
     openAt?: number | null;
     ezaOpenAt?: number | null;
     sezaOpenAt?: number | null;
-    /** Stats ya conocidos (semilla/datamine) para conservar el EZA/SEZA real. */
+    /** Stats ya conocidos (semilla local) para conservar el EZA/SEZA real. */
     prevStats?: Stats | null;
     /** ID de personaje base (para detectar exchange/transformaciones). */
     characterId?: number | null;
@@ -557,10 +556,6 @@ export function cacheDetail(id: number, indexHash: string, data: UnitFull): void
   void dbSet(STORE, `u${id}`, { v: CACHE_VERSION, indexHash, data });
 }
 
-/**
- * Descarga (o recupera de caché) la ficha completa de una unidad.
- * Lanza si la fuente no responde: la vista muestra el detalle parcial del índice.
- */
 export async function fetchUnitDetail(id: number, force = false): Promise<UnitFull> {
   const mem = memCache.get(id);
   if (mem && !force) return mem;
@@ -580,7 +575,7 @@ export async function fetchUnitDetail(id: number, force = false): Promise<UnitFu
     const page = parseCardPage(html);
     if (!page) throw new Error(`Ficha ilegible para la unidad ${id}`);
     const dropsIndex = await loadDropsIndex();
-    // Stats previos (semilla/datamine) para no sustituir un EZA/SEZA real por
+    // Stats previos (semilla local) para no sustituir un EZA/SEZA real por
     // la fórmula de la fuente (inválida en LR).
     const prevStats = getUnit(id)?.stats ?? null;
     const data = fullFromCardPage(page, dropsIndex, await loadZbattlesIndex(), prevStats);
@@ -594,5 +589,24 @@ export async function fetchUnitDetail(id: number, force = false): Promise<UnitFu
     return await promise;
   } finally {
     inflight.delete(id);
+  }
+}
+
+/**
+ * Descarga solo el resumen de una unidad (para tarjetas en banners, etc.).
+ * Más ligero que fetchUnitDetail: no pide drops, zbattles, ni estado EZA/SEZA.
+ * Usa la misma caché de HTML de /cards/{id}.
+ */
+export async function fetchUnitSummary(id: number): Promise<UnitSummary | null> {
+  const mem = memCache.get(id);
+  if (mem) return mem; // si ya tenemos la ficha completa, usamos su resumen implícito
+
+  try {
+    const html = await fetchInfoText(`/cards/${id}`);
+    const page = parseCardPage(html);
+    if (!page) return null;
+    return summaryFromCardPage(id, page);
+  } catch {
+    return null;
   }
 }

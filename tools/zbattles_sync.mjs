@@ -36,7 +36,6 @@ const run = promisify(execFile);
 
 const INFO = 'https://dokkaninfo.com';
 const INFO_ASSET = `${INFO}/assets/global/en`;
-const CDN_ASSET = 'https://cdn.dokkan.fyi/assets/en';
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 
@@ -93,7 +92,13 @@ function eventImage(row) {
     if (!p) continue;
     if (String(p).includes('/')) {
       const v = String(p).replace(/^\/+/, '');
-      if (v.startsWith('banners/')) return `${CDN_ASSET}/${v}`;
+      // Rutas `banners/…`: la raíz de /assets/global da 404 en la fuente;
+      // las publica bajo ingame/events (verificado con bytes reales).
+      const ev = v.match(/^banners\/en\/event\/[^/]+\/(.+)$/);
+      if (ev) return `${INFO_ASSET}/ingame/events/${ev[1]}`;
+      const news = v.match(/^banners\/en\/news\/(.+)$/);
+      if (news) return `${INFO_ASSET}/ingame/news/${news[1]}`;
+      if (v.startsWith('banners/')) return `${INFO_ASSET}/ingame/banners/${v.slice(v.lastIndexOf('/') + 1)}`;
       if (v.startsWith('assets/global/en/')) return `${INFO}/${v}`;
       return `${INFO_ASSET}/${v}`;
     }

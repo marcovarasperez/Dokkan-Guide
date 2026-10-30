@@ -15,8 +15,8 @@ import type { MiniUnit } from '../model/detail';
  *    render.
  *
  * Flujo de los datos: `model/wiki.ts` carga la semilla local generada por
- * `tools/wiki_sync.mjs` (categorías desde dokkan.fyi — dokkaninfo.com no
- * expone esta API) + etiquetas oficiales de dokkaninfo; los personajes salen
+ * `tools/categories_sync.mjs` (categorías scrapeadas de /cards/{id} de
+ * dokkaninfo.com) + etiquetas oficiales de dokkaninfo; los personajes salen
  * del repositorio local (`units`, pasado desde la vista). La etiqueta de cada
  * categoría (`labelUrl`) y los helpers de pintado (`hideBroken`) se quedan
  * en la vista.

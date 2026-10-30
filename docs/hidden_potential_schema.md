@@ -1,9 +1,9 @@
 # Esquema de `hidden_potential.json`
 
-Guías curated de Hidden Potential por unidad (formato minimalista: distribución de niveles de las 3 skills del tablero). El adaptador (`app/src/data/hp.ts`) las usa con esta prioridad:
+Guías curated de Hidden Potential por unidad (formato minimalista: distribución de niveles de las 3 skills del tablero). El adaptador (`app/src/model/hp.ts`) las usa con esta prioridad:
 
 1. **curated** — este archivo (autor citado, p. ej. "Source: CelticLink").
-2. **community** — votos de la comunidad de DOKKAN.FYI (≥ 5 votos, por estado base/EZA).
+2. **algorithm** — cálculo local a partir del texto de la pasiva de la fuente (reglas del método).
 3. **estimated** — estimación por rol (ofensivo: Adicional → Crítico → Evasión; defensivo: Evasión → Adicional → Crítico), siempre etiquetada "Estimated".
 
 En la app la recomendación se muestra como: **Adicional X · Crítico Y · Evasión Z** (reparto estándar 15 + 11 + 0 nodos).
@@ -12,7 +12,7 @@ En la app la recomendación se muestra como: **Adicional X · Crítico Y · Evas
 
 ```json
 {
-  "unitId": 1034761,                  // obligatorio; id de dokkan.fyi (debe existir en units.index.json)
+  "unitId": 1034761,                  // obligatorio; id de carta (debe existir en units.index.json)
   "variant": "eza",                   // opcional: "base" | "eza" (defecto "base"; "eza" cubre EZA y SEZA)
   "levels": {                         // obligatorio: niveles enteros 0-15
     "additional": 0,                  //   Combo Attack / ataque adicional (icono pot_skill_01)

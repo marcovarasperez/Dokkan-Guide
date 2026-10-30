@@ -20,7 +20,8 @@ import type { ComponentChildren } from 'preact';
  * encabezados se muestra como una única lista para no perder contenido.
  */
 
-const ICON_BASE = 'https://cdn.dokkan.fyi/assets/en/layout/en/image/battle/skill_dialog/passive_skill_dialog_';
+const ICON_BASE =
+  'https://dokkaninfo.com/assets/global/en/layout/en/image/ingame/battle/skill_dialog/passive_skill_dialog_';
 const ICON_MAP: Record<string, string> = {
   up_g: 'arrow01',
   down_r: 'arrow02',

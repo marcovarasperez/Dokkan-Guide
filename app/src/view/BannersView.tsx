@@ -1,15 +1,14 @@
 import type { ArchiveBanner } from '../model/bannerArchive';
 import { formatDate } from '../model/format';
 import { useBannersController } from '../controller/bannersController';
+import { useState } from 'preact/hooks';
 import InfoImg from './InfoImg';
 import { LoadMore, StatusBlock } from './gameShared';
 
 /**
  * Sección Banners, dividida en ACTIVOS y FINALIZADOS — fuente: dokkaninfo.com.
  *
- * Solo pinta: la pestaña, la descarga/refresco del archivo, la paginación y la
- * agrupación de los banners activos viven en `controller/bannersController.ts`.
- * Cualquier banner → detalle en-app (#/banners/{id}) con sus destacados.
+ * Lista simple centrada: una tarjeta por fila, click → detalle #/banners/{id}
  */
 
 const fmtEpoch = (sec: number): string =>
@@ -53,7 +52,7 @@ function BannerCard({ b }: { b: ArchiveBanner }) {
   );
 }
 
-/** Chip de frescura del listado (ya que el refresco lo hace la sincronización). */
+/** Chip de frescura del listado. */
 function updatedAtText(at: number | null): string {
   if (!at) return '';
   const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
@@ -62,12 +61,49 @@ function updatedAtText(at: number | null): string {
   return `Al día · hace ${Math.round(mins / 60)} h`;
 }
 
+/** Aplana grupos en una lista única con encabezados de grupo */
+function flattenGroups(groups: Array<{ key: string; label: string; items: ArchiveBanner[] }>) {
+  const result: Array<{ type: 'header'; label: string; key: string } | { type: 'banner'; banner: ArchiveBanner }> = [];
+  groups.forEach((g, gi) => {
+    if (g.items.length === 0) return;
+    result.push({ type: 'header', label: g.label, key: `header-${g.key}` });
+    g.items.forEach((b) => result.push({ type: 'banner', banner: b }));
+  });
+  return result;
+}
+
+/** Aplana grupos limitando a 3 items por grupo, retorna items + flag de si hay más */
+function flattenGroupsLimited(groups: Array<{ key: string; label: string; items: ArchiveBanner[] }>, expandedKeys: Set<string>) {
+  const result: Array<{ type: 'header'; label: string; key: string } | { type: 'banner'; banner: ArchiveBanner } | { type: 'showmore'; groupKey: string; label: string; remaining: number }> = [];
+  groups.forEach((g, gi) => {
+    if (g.items.length === 0) return;
+    result.push({ type: 'header', label: g.label, key: `header-${g.key}` });
+    const isExpanded = expandedKeys.has(g.key);
+    const itemsToShow = isExpanded ? g.items : g.items.slice(0, 3);
+    itemsToShow.forEach((b) => result.push({ type: 'banner', banner: b }));
+    if (!isExpanded && g.items.length > 3) {
+      result.push({ type: 'showmore', groupKey: g.key, label: g.label, remaining: g.items.length - 3 });
+    }
+  });
+  return result;
+}
+
 export default function BannersView() {
   const { tab, setTab, arch, groups, empty, refresh, loadMore } = useBannersController();
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  };
 
   return (
     <div class="feed-scroll">
-      <div class="feed">
+      <div class="feed feed--banners">
         <div class="feed__head">
           <h2>Banners</h2>
           <span class="feed__status">{tab === 'active' ? updatedAtText(arch.updatedAt) : ''}</span>
@@ -100,16 +136,21 @@ export default function BannersView() {
         ) : empty ? (
           <StatusBlock status={arch.status} onRetry={refresh} />
         ) : tab === 'active' ? (
-          groups.map((g) => (
-            <section class="banner-group" key={g.key}>
-              <h3 class="banner-group__title">{g.label}</h3>
-              <ul class="banner-list">
-                {g.items.map((b) => (
-                  <BannerCard b={b} key={b.id} />
-                ))}
-              </ul>
-            </section>
-          ))
+          <ul class="banner-list">
+            {flattenGroupsLimited(groups, expandedGroups).map((item) =>
+              item.type === 'header' ? (
+                <li key={item.key} class="banner-group__title-grid">{item.label}</li>
+              ) : item.type === 'showmore' ? (
+                <li key={`showmore-${item.groupKey}`} class="banner-group__showmore">
+                  <button type="button" class="btn btn-secondary" onClick={() => toggleGroup(item.groupKey)}>
+                    Mostrar {item.remaining} más de {item.label}
+                  </button>
+                </li>
+              ) : (
+                <BannerCard b={item.banner} key={item.banner.id} />
+              )
+            )}
+          </ul>
         ) : (
           <ul class="banner-list">
             {arch.items.map((b) => (

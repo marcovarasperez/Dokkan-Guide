@@ -500,7 +500,7 @@ export function useUnitDetail(id: number) {
   }
 
   // Stats del estado seleccionado (el row de la fuente SIEMPRE es el estado
-  // base; EZA/SEZA usan stats.eza — valor real del datamine o fórmula de
+  // base; EZA/SEZA usan stats.eza — valor real de la semilla o fórmula de
   // dokkaninfo: máx. + 48,39 % del margen min→máx, ver detail.ts).
   const ezaSelected = viewState === 'eza';
   const sezaSelected = viewState === 'seza';

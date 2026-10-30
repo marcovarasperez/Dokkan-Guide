@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "sync": "node ../tools/sync.mjs",
+    "sync": "node ../tools/sync.mjs && node ../tools/categories_sync.mjs && node ../tools/wiki_sync.mjs",
+    "sync:categories": "node ../tools/categories_sync.mjs",
+    "sync:wiki": "node ../tools/wiki_sync.mjs",
     "cap:sync": "npm run build && cap sync android",
     "tauri": "tauri"
   },
@@ -18,6 +20,7 @@
     "@capacitor/core": "^8.5.3",
     "@preact/signals": "^2.0.4",
     "@tauri-apps/plugin-http": "^2.8.3",
+    "idb": "^8.0.4",
     "preact": "^10.27.0"
   },
   "devDependencies": {

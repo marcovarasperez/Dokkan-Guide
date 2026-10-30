@@ -1,6 +1,6 @@
 # Compilación: APK (Android) y .exe (Windows)
 
-Proyecto fan no comercial · Datos: DOKKAN.FYI
+Proyecto fan no comercial · Datos: DOKKANINFO.COM
 
 La app es una SPA (**Vite + TypeScript + Preact**) y se empaqueta en dos shells:
 
@@ -9,7 +9,7 @@ La app es una SPA (**Vite + TypeScript + Preact**) y se empaqueta en dos shells:
 | **APK** (Android) | Capacitor 8 | `app/android` (Gradle) |
 | **.exe** (Windows) | Tauri 2 | `app/src-tauri` (Rust) |
 
-En ambos casos, `app/src/data/http.ts` detecta el shell en runtime y usa el transporte
+En ambos casos, `app/src/model/http.ts` detecta el shell en runtime y usa el transporte
 **nativo sin CORS** (CapacitorHttp / tauri-plugin-http) mediante import dinámico — en web
 solo corre el proxy de desarrollo. El build web (`dist/`) es la base de los dos shells.
 
@@ -109,7 +109,7 @@ npm.cmd run tauri dev
 
 - **Primera compilación**: descarga ~300 crates ≈ 3-10 min; compilaciones posteriores ≈ 1-3 min.
 - Config: `src-tauri/tauri.conf.json` (ventana, targets `["nsis","msi"]`, CSP abierta para el CDN de imágenes).
-- Permisos: `src-tauri/capabilities/default.json` incluye `http:default` (transporte a dokkan.fyi).
+- Permisos: `src-tauri/capabilities/default.json` incluye `http:default` (transporte a dokkaninfo.com).
 - Iconos regenerables: `npx tauri icon ruta\icon-1024.png`.
 - Sin firma de código → SmartScreen puede avisar al ejecutar (esperable en builds locales).
 

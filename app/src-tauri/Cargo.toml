@@ -1,7 +1,7 @@
 [package]
 name = "dokkan-fan-guide"
 version = "0.2.0"
-description = "Guía fan de Dokkan Battle Global (proyecto no comercial) — datos: DOKKAN.FYI"
+description = "Guía fan de Dokkan Battle Global (proyecto no comercial) — datos: DOKKANINFO.COM"
 authors = ["Dokkan Fan Guide"]
 edition = "2021"
 rust-version = "1.77.2"

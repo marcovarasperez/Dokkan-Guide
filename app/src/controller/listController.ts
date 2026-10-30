@@ -2,8 +2,10 @@ import { useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import type { UnitClass, UnitRarity, UnitSummary, UnitType } from '../model/types';
 import { getUnits, getUnitsForList, getUpdatedAt, loadRepository } from '../model/repository';
-import { checkOnOpen, startAutoRefresh, syncState } from '../model/sync';
+import { startAutoRefresh, syncState, manualRefresh } from '../model/sync';
 import { loadSeedIfEmpty } from '../model/news';
+import { loadCategoriesIndex } from '../model/wiki';
+import type { CategoriesIndex } from '../model/wiki';
 
 /**
  * CONTROLADOR · Listado de personajes (búsqueda, filtros y orden).
@@ -24,6 +26,10 @@ export const query = signal('');
 export const selectedTypes = signal<UnitType[]>([]);
 export const selectedClasses = signal<UnitClass[]>([]);
 export const selectedRarities = signal<UnitRarity[]>([]);
+export const selectedCategories = signal<number[]>([]);
+export const categoryFilterMode = signal<'any' | 'all'>('any'); // 'any' = OR, 'all' = AND
+
+export const categoriesIndex = signal<CategoriesIndex | null>(null);
 
 /** Criterio de orden estilo juego: recientes · nombre · rareza · HP · ATK · DEF · coste. */
 export type SortKey = 'recent' | 'name' | 'rarity' | 'hp' | 'atk' | 'def' | 'cost';
@@ -80,7 +86,7 @@ const SORTERS: Record<SortKey, (a: UnitSummary, b: UnitSummary) => number> = {
 };
 
 export function useListController() {
-  // Carga local (instantánea) + semilla de noticias + comprobación de sync.
+  // Carga local (instantánea) + semilla de noticias (sin auto-sync al abrir).
   useEffect(() => {
     loadRepository()
       .then(() => {
@@ -92,11 +98,11 @@ export function useListController() {
     loadSeedIfEmpty().catch(() => {
       /* la vista de noticias maneja su estado vacío */
     });
-    checkOnOpen().catch(() => {
-      /* el chip de estado refleja el error */
+    // Cargar índice de categorías
+    loadCategoriesIndex().then((idx) => {
+      if (idx) categoriesIndex.value = idx;
     });
-    // Refresco automático: la información se actualiza sola cada 5 minutos
-    // (mismo flujo que el botón «⟳ Actualizar» de la barra de estado).
+    // Refresco automático en segundo plano (sin notificar al usuario salvo que falle).
     const stopAutoRefresh = startAutoRefresh();
     return () => stopAutoRefresh();
   }, []);
@@ -117,6 +123,9 @@ export function useListController() {
     const types = selectedTypes.value;
     const classes = selectedClasses.value;
     const rarities = selectedRarities.value;
+    const categories = selectedCategories.value;
+    const catMode = categoryFilterMode.value;
+    const catIdx = categoriesIndex.value;
     const key = sortBy.value;
     const dir = sortDesc.value ? -1 : 1;
 
@@ -125,6 +134,28 @@ export function useListController() {
     if (types.length > 0) out = out.filter((u) => types.includes(u.type));
     if (classes.length > 0) out = out.filter((u) => classes.includes(u.class));
     if (rarities.length > 0) out = out.filter((u) => rarities.includes(u.rarity));
+    if (categories.length > 0 && catIdx) {
+      if (catMode === 'all') {
+        // AND mode: unit must belong to ALL selected categories
+        out = out.filter((u) => {
+          for (const catId of categories) {
+            const members = catIdx.members[String(catId)];
+            if (!members || !members.includes(u.id)) return false;
+          }
+          return true;
+        });
+      } else {
+        // OR mode (default): unit must belong to ANY selected category
+        const allowedIds = new Set<number>();
+        for (const catId of categories) {
+          const members = catIdx.members[String(catId)];
+          if (members) {
+            for (const id of members) allowedIds.add(id);
+          }
+        }
+        out = out.filter((u) => allowedIds.has(u.id));
+      }
+    }
 
     return [...out].sort((a, b) => SORTERS[key](a, b) * dir);
   }, [
@@ -133,6 +164,9 @@ export function useListController() {
     selectedTypes.value,
     selectedClasses.value,
     selectedRarities.value,
+    selectedCategories.value,
+    categoryFilterMode.value,
+    categoriesIndex.value,
     sortBy.value,
     sortDesc.value,
   ]);
@@ -152,11 +186,22 @@ export function useListController() {
     selectedRarities.value = cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r];
   };
 
+  const toggleCategory = (catId: number): void => {
+    const cur = selectedCategories.value;
+    selectedCategories.value = cur.includes(catId) ? cur.filter((x) => x !== catId) : [...cur, catId];
+  };
+
+  const toggleCategoryMode = (): void => {
+    categoryFilterMode.value = categoryFilterMode.value === 'any' ? 'all' : 'any';
+  };
+
   const clearFilters = (): void => {
     query.value = '';
     selectedTypes.value = [];
     selectedClasses.value = [];
     selectedRarities.value = [];
+    selectedCategories.value = [];
+    categoryFilterMode.value = 'any';
     sortBy.value = 'recent';
     sortDesc.value = true;
   };
@@ -180,6 +225,11 @@ export function useListController() {
     onToggleClass: toggleClass,
     selectedRarities: selectedRarities.value,
     onToggleRarity: toggleRarity,
+    selectedCategories: selectedCategories.value,
+    onToggleCategory: toggleCategory,
+    categoryFilterMode: categoryFilterMode.value,
+    onToggleCategoryMode: toggleCategoryMode,
+    categoriesIndex: categoriesIndex.value,
     onClear: clearFilters,
     // orden (FilterBar pasa el valor del <select> como string)
     sortBy: sortBy.value,
