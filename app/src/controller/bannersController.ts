@@ -41,6 +41,8 @@ const GROUPS: { key: BannerGroupKey; label: string }[] = [
 function groupOf(b: ArchiveBanner): BannerGroupKey {
   const t = (b.type ?? '').toLowerCase();
   const name = (b.name ?? '').toLowerCase();
+  // Excluir Tutorial Summon
+  if (name.includes('tutorial')) return 'exclude';
   if (t.includes('ticket')) return 'ticket';
   if (t.includes('point') || t.includes('tutorial')) return 'friend';
   if (t.includes('stone') && /elder kai|mysterious ritual/.test(name)) return 'stone';
@@ -72,14 +74,20 @@ export function useBannersController() {
     (g) => g.items.length > 0,
   );
 
-  const empty = tab === 'active' ? groups.length === 0 : arch.items.length === 0;
+  // Filtrar banners "exclude" (Tutorial Summon) del archivo de finalizados también
+  const filteredEndedItems = arch.items.filter((b) => groupOf(b) !== 'exclude');
+
+  const empty = tab === 'active' ? groups.length === 0 : filteredEndedItems.length === 0;
 
   return {
     /** Pestaña visible: activos · finalizados. */
     tab,
     setTab,
     /** Estado del archivo de la pestaña (items, status, paginación, updatedAt). */
-    arch,
+    arch: {
+      ...arch,
+      items: tab === 'active' ? arch.items : filteredEndedItems,
+    },
     /** Banners ACTIVOS ya agrupados (solo grupos con contenido). */
     groups,
     /** ¿La pestaña visible no tiene ningún banner? */

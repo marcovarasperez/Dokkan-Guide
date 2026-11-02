@@ -31,13 +31,13 @@ export const DB_NAME = 'dk-detail';
 const DB_VERSION = 3;
 
 export const STORE_DETAILS = 'details';
-export const STORE_UNITS = 'units';
-export const STORE_UNITS_LIST = 'units_list'; // caché del listado /cards con TTL
+const STORE_UNITS = 'units';
+const STORE_UNITS_LIST = 'units_list'; // caché del listado /cards con TTL
 export const STORE_META = 'meta';
-export const STORE_FRESH = 'fresh';
-export const STORE_NEWS = 'news';
+const STORE_FRESH = 'fresh';
+const STORE_NEWS = 'news';
 export const STORE_EVENTS = 'events';
-export const STORE_BANNERS = 'banners';
+const STORE_BANNERS = 'banners';
 
 const ALL_STORES = [
   STORE_DETAILS,
@@ -53,7 +53,7 @@ const ALL_STORES = [
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 /** Abre (o reabre tras un error) la BD, creando las tiendas que falten. */
-export function openLocalDb(): Promise<IDBDatabase> {
+function openLocalDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
     try {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -105,52 +105,6 @@ export async function dbSet<T>(store: string, key: IDBValidKey, value: T): Promi
     return await new Promise((resolve) => {
       const tx = db.transaction(store, 'readwrite');
       tx.objectStore(store).put(value, key);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-      tx.onabort = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-}
-
-/** Lee todas las filas de una tienda. null si la BD no está disponible. */
-export async function dbGetAll<T>(store: string): Promise<T[] | null> {
-  try {
-    const db = await openLocalDb();
-    return await new Promise((resolve) => {
-      const rq = db.transaction(store, 'readonly').objectStore(store).getAll();
-      rq.onsuccess = () => resolve((rq.result as T[]) ?? []);
-      rq.onerror = () => resolve(null);
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Borra una clave. true si la operación se completó (aunque no existiera). */
-export async function dbDelete(store: string, key: IDBValidKey): Promise<boolean> {
-  try {
-    const db = await openLocalDb();
-    return await new Promise((resolve) => {
-      const tx = db.transaction(store, 'readwrite');
-      tx.objectStore(store).delete(key);
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-      tx.onabort = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
-}
-
-/** Vacía una tienda entera. true si la operación se completó. */
-export async function dbClear(store: string): Promise<boolean> {
-  try {
-    const db = await openLocalDb();
-    return await new Promise((resolve) => {
-      const tx = db.transaction(store, 'readwrite');
-      tx.objectStore(store).clear();
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => resolve(false);
       tx.onabort = () => resolve(false);

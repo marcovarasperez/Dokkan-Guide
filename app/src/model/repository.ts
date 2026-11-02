@@ -52,12 +52,6 @@ export function loadRepository(): Promise<void> {
   return readyPromise;
 }
 
-/** Resuelve cuando el repositorio está cargado. */
-export function repositoryReady(): Promise<void> {
-  readyPromise ??= loadInternal();
-  return readyPromise;
-}
-
 async function loadInternal(): Promise<void> {
   const [index, seedMeta] = await Promise.all([
     fetchJson<UnitSummary[]>('/data/units.index.json'),

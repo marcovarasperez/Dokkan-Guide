@@ -61,21 +61,10 @@ function updatedAtText(at: number | null): string {
   return `Al día · hace ${Math.round(mins / 60)} h`;
 }
 
-/** Aplana grupos en una lista única con encabezados de grupo */
-function flattenGroups(groups: Array<{ key: string; label: string; items: ArchiveBanner[] }>) {
-  const result: Array<{ type: 'header'; label: string; key: string } | { type: 'banner'; banner: ArchiveBanner }> = [];
-  groups.forEach((g, gi) => {
-    if (g.items.length === 0) return;
-    result.push({ type: 'header', label: g.label, key: `header-${g.key}` });
-    g.items.forEach((b) => result.push({ type: 'banner', banner: b }));
-  });
-  return result;
-}
-
 /** Aplana grupos limitando a 3 items por grupo, retorna items + flag de si hay más */
 function flattenGroupsLimited(groups: Array<{ key: string; label: string; items: ArchiveBanner[] }>, expandedKeys: Set<string>) {
   const result: Array<{ type: 'header'; label: string; key: string } | { type: 'banner'; banner: ArchiveBanner } | { type: 'showmore'; groupKey: string; label: string; remaining: number }> = [];
-  groups.forEach((g, gi) => {
+  groups.forEach((g) => {
     if (g.items.length === 0) return;
     result.push({ type: 'header', label: g.label, key: `header-${g.key}` });
     const isExpanded = expandedKeys.has(g.key);

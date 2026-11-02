@@ -14,17 +14,41 @@
  *  - en desarrollo (Vite) se usa un proxy local (/dinfo → curl.exe, ver
  *    vite.config.ts — el TLS de Node recibe 403, curl no);
  *  - en Tauri (Windows) se usa el plugin nativo http (@tauri-apps/plugin-http);
- *  - en Capacitor (Android) se usa el HTTP nativo de core (CapacitorHttp);
+ *  - en Capacitor (Android) se usa el plugin nativo `OkHttp` (HTTP/2, ver
+ *    app/android/.../OkHttpPlugin.java) y, si el APK no lo incluye, el HTTP
+ *    nativo de core (CapacitorHttp, HTTP/1.1 → 403 de Cloudflare);
  *  - en web (sin shell) se usa fetch simple (solo sirve si hay proxy o CORS).
  *
  * Los transportes nativos se importan de forma dinámica: los chunks solo se
  * descargan cuando la app corre dentro del shell correspondiente (coste 0 en web).
  */
 
+import type { HttpOptions } from '@capacitor/core';
+
 const INFO_SOURCE = 'https://dokkaninfo.com';
 const INFO_DEV_PREFIX = '/dinfo';
 const INFO_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
+/**
+ * Plugin nativo `OkHttp` (app/android/.../OkHttpPlugin.java). Expone la MISMA
+ * API que `CapacitorHttp.request` y, de paso, `protocol` ("http/2.0"), que es
+ * lo que distingue una petición aceptada por Cloudflare de un 403.
+ */
+interface OkHttpPlugin {
+  request(options: HttpOptions): Promise<OkHttpResponse>;
+}
+
+/** Instancia cacheada del plugin (se registra una sola vez por sesión). */
+let okHttpPlugin: OkHttpPlugin | undefined;
+
+/** Respuesta del transporte de Android (el `protocol` solo lo añade OkHttpPlugin). */
+interface OkHttpResponse {
+  status: number;
+  headers?: Record<string, string>;
+  data?: unknown;
+  protocol?: string;
+}
 
 interface NativeGlobals {
   __TAURI_INTERNALS__?: unknown;
@@ -135,7 +159,7 @@ function capacitorDataToBlob(data: unknown): Blob {
 }
 
 /** GET unificado sobre el transporte activo (Tauri / Capacitor / fetch). */
-async function transportGet(url: string, timeoutMs: number, headers: Record<string, string>): Promise<HttpPayload> {
+async function transportGet(url: string, timeoutMs: number, headers: Record<string, string>, responseType: 'text' | 'blob' = 'text'): Promise<HttpPayload> {
   const g = globalThis as NativeGlobals;
 
   // Tauri (producción Windows).
@@ -152,16 +176,44 @@ async function transportGet(url: string, timeoutMs: number, headers: Record<stri
 
   // Capacitor (producción Android).
   if (g.Capacitor?.isNativePlatform?.()) {
-    const { CapacitorHttp } = await import('@capacitor/core');
-    const res = await CapacitorHttp.get({ url, headers, readTimeout: timeoutMs });
-    const retryAfter = res.headers?.['retry-after'] ?? res.headers?.['Retry-After'];
-    return {
-      status: res.status,
-      retryAfterMs: parseRetryAfter(retryAfter ?? null),
-      // En Android el dato llega como string (texto) o binario según versión.
-      text: async () => (typeof res.data === 'string' ? res.data : JSON.stringify(res.data ?? '')),
-      blob: async () => capacitorDataToBlob(res.data),
+    // `CapacitorHttp` usa HttpURLConnection, que SOLO habla HTTP/1.1 →
+    // Cloudflare responde 403 y la ficha cae a «Sin conexión». El plugin
+    // nativo `OkHttp` (mismo formato de opciones/respuesta) negocia HTTP/2 por
+    // ALPN y la fuente contesta 200. Si el APK no lo lleva (versión antigua),
+    // se mantiene el transporte de core como último recurso.
+    const { Capacitor, CapacitorHttp, registerPlugin } = await import('@capacitor/core');
+    const useOkHttp = Capacitor.isPluginAvailable('OkHttp');
+    // `registerPlugin` se llama una sola vez (si no, core avisa "already registered").
+    if (useOkHttp && !okHttpPlugin) okHttpPlugin = registerPlugin<OkHttpPlugin>('OkHttp');
+    const options: HttpOptions = {
+      method: 'GET',
+      url,
+      headers,
+      // `HttpOptions` NO acepta `timeout`: solo `readTimeout`/`connectTimeout`
+      // (ver core-plugins.d.ts). Con `timeout` la petición quedaba SIN tope de
+      // tiempo en Android y una conexión colgada dejaba la ficha en "cargando".
+      readTimeout: timeoutMs,
+      connectTimeout: timeoutMs,
+      responseType,
     };
+
+    console.log('[http] request:', url, '| transporte:', useOkHttp ? 'OkHttp' : 'CapacitorHttp', '| responseType:', responseType);
+    try {
+      const res: OkHttpResponse = useOkHttp && okHttpPlugin
+        ? await okHttpPlugin.request(options)
+        : await CapacitorHttp.request(options);
+      console.log('[http] response:', res.status, '| protocolo:', res.protocol ?? 'n/d');
+      const retryAfter = res.headers?.['retry-after'] ?? res.headers?.['Retry-After'];
+      return {
+        status: res.status,
+        retryAfterMs: parseRetryAfter(retryAfter ?? null),
+        text: async () => (typeof res.data === 'string' ? res.data : JSON.stringify(res.data ?? '')),
+        blob: async () => capacitorDataToBlob(res.data),
+      };
+    } catch (e) {
+      console.error('[http] error:', e);
+      throw e;
+    }
   }
 
   // Desarrollo (proxy) o fetch simple: mismo tope de tiempo si el runtime lo permite.
@@ -204,7 +256,7 @@ export async function fetchInfoText(path: string): Promise<string> {
 export async function fetchInfoBytes(path: string, timeoutMs = 30000): Promise<ArrayBuffer> {
   return withRetries(async () => {
     await pace();
-    const p = await transportGet(infoUrl(path), timeoutMs, INFO_HEADERS);
+    const p = await transportGet(infoUrl(path), timeoutMs, INFO_HEADERS, 'blob');
     if (!isOk(p.status)) throw new HttpError(p.status, path, p.retryAfterMs);
     const buf = await p.blob();
     const bytes = new Uint8Array(await buf.arrayBuffer());
@@ -215,16 +267,6 @@ export async function fetchInfoBytes(path: string, timeoutMs = 30000): Promise<A
     }
     return bytes.buffer;
   });
-}
-
-/**
- * Descarga texto desde una URL arbitraria con el mismo transporte que el resto
- * de la app (Tauri/Capacitor nativos; fetch simple en web).
- */
-export async function fetchTextUrl(url: string, readTimeoutMs = 30000): Promise<string> {
-  const p = await transportGet(url, readTimeoutMs, { accept: 'application/json' });
-  if (!isOk(p.status)) throw new HttpError(p.status, url, p.retryAfterMs);
-  return await p.text();
 }
 
 /**
@@ -243,7 +285,7 @@ export async function fetchInfoImage(fullUrl: string): Promise<string> {
 
   return withRetries(async () => {
     await pace();
-    const p = await transportGet(infoUrl(path), 20000, INFO_HEADERS);
+    const p = await transportGet(infoUrl(path), 20000, INFO_HEADERS, 'blob');
     if (!isOk(p.status)) throw new HttpError(p.status, path, p.retryAfterMs);
     const blob = await p.blob();
     if (!(await isImagePayload(blob))) {

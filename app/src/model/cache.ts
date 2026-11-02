@@ -1,6 +1,6 @@
-/** Utilidades de caché local (IndexedDB + localStorage) */
+import { DB_NAME as DETAIL_DB } from './localDb';
 
-const CACHE_STORES = ['units', 'units-meta', 'news', 'banners', 'events', 'baba', 'categories'];
+/** Utilidades de caché local (IndexedDB + localStorage) */
 
 /** Limpia todo el caché y recarga la página */
 export async function clearCacheAndReload(): Promise<void> {
@@ -69,8 +69,9 @@ async function deleteDbs(dbs: IDBDatabaseInfo[]): Promise<void> {
 }
 
 async function deleteKnownDbs(): Promise<void> {
-  // Nombres de DBs usados en la app
-  const knownNames = ['dokkan-guide', 'dokkan-fan-guide', 'units-db', 'offline-db'];
+  // Nombres de DBs usados en la app (dk-detail es la BD activa; los demás son
+  // restos de versiones antiguas que conviene limpiar).
+  const knownNames = [DETAIL_DB, 'dokkan-guide-db', 'dokkan-guide', 'dokkan-fan-guide', 'units-db', 'offline-db'];
   for (const name of knownNames) {
     await deleteDatabase(name);
   }

@@ -127,7 +127,7 @@ export function SettingsView() {
             <input
               type="checkbox"
               checked={theme.value === 'light'}
-              onChange={(e) => handleThemeChange(e.target.checked ? 'light' : 'dark')}
+              onChange={(e) => handleThemeChange((e.currentTarget as HTMLInputElement).checked ? 'light' : 'dark')}
             />
             <span class="mode-toggle__slider"></span>
           </label>
@@ -146,7 +146,7 @@ export function SettingsView() {
             <input
               type="checkbox"
               checked={animationsEnabled.value}
-              onChange={(e) => handleAnimationsChange(e.target.checked)}
+              onChange={(e) => handleAnimationsChange((e.currentTarget as HTMLInputElement).checked)}
             />
             <span class="setting-checkbox__slider"></span>
           </label>
@@ -203,9 +203,3 @@ export function SettingsView() {
     </section>
   );
 }
-
-// Stubs compatibilidad
-export const onlineMode = { value: 'online' as const };
-export const loadOnlineMode = async () => 'online';
-export const setOnlineMode = async () => {};
-export const isOnlineMode = () => true;

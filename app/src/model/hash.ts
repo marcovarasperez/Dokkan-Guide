@@ -34,14 +34,6 @@ export function stableStringify(v: unknown): string {
 }
 
 /**
- * Hash compuesto de { summary, detail } — usado por fyi.ts para comparar
- * con hashes del seed (meta.json).
- */
-export function hashSummaryAndDetail(summary: unknown, detail: unknown): string {
-  return fnv1a(stableStringify({ summary, detail }));
-}
-
-/**
  * Hash de una fila del catálogo (DkCardRow) — usado por sync.ts para rowHash.
  * Serializa solo los campos que importan para detectar cambios reales.
  */

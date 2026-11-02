@@ -598,9 +598,6 @@ export async function fetchUnitDetail(id: number, force = false): Promise<UnitFu
  * Usa la misma caché de HTML de /cards/{id}.
  */
 export async function fetchUnitSummary(id: number): Promise<UnitSummary | null> {
-  const mem = memCache.get(id);
-  if (mem) return mem; // si ya tenemos la ficha completa, usamos su resumen implícito
-
   try {
     const html = await fetchInfoText(`/cards/${id}`);
     const page = parseCardPage(html);

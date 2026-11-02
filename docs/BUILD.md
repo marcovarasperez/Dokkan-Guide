@@ -69,7 +69,13 @@ keytool -genkey -v -keystore dokkan-fan.keystore -alias dokkan -keyalg RSA -keys
 - Icono por defecto de Capacitor; para personalizar, sustituye los `mipmap-*` de
   `android\app\src\main\res\` (hay variantes generadas en `app\src-tauri\icons\android\mipmap-*`, reutilizables).
 - **Obligatorio** ejecutar `npx cap sync android` tras cada `npm run build` (sino, el APK lleva la app antigua).
-- El transporte nativo (`CapacitorHttp` de `@capacitor/core`) se activa solo al correr dentro del shell.
+- **Transporte HTTP en Android**: plugin propio `fan.dokkanguide.global.OkHttpPlugin`
+  (dependencia `com.squareup.okhttp3:okhttp`), registrado en `MainActivity`. Motivo:
+  Cloudflare devuelve **403** a HTTP/1.1, y `CapacitorHttp` (`HttpURLConnection`) solo
+  habla HTTP/1.1 → la ficha de personaje no cargaba («Sin conexión»). OkHttp negocia
+  HTTP/2 por ALPN sobre Conscrypt y la fuente contesta 200. `src/model/http.ts` usa el
+  plugin si `Capacitor.isPluginAvailable('OkHttp')` y, si no, cae a `CapacitorHttp`.
+  Los logs `[http] … | transporte: OkHttp | protocolo: http/2.0` confirman la vía.
 
 ---
 

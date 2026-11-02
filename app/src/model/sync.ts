@@ -7,11 +7,11 @@ import type { DkCardRow } from './dinfo';
 import { cacheDetail, fullFromCardPage, loadDropsIndex, loadZbattlesIndex, summaryFromCardPage } from './detail';
 import { refreshNews } from './news';
 import {
-  getUnits, getUnit, applySyncResult, readSyncMeta, writeSyncMeta, repositoryReady,
+  getUnits, getUnit, applySyncResult, writeSyncMeta,
 } from './repository';
 import { hashCardRow } from './hash';
 import { datePart } from './date';
-import { CHECK_INTERVAL_MS, AUTO_REFRESH_MS, MAX_FETCHES_PER_RUN } from './constants';
+import { AUTO_REFRESH_MS, MAX_FETCHES_PER_RUN } from './constants';
 
 /**
  * Servicio de sincronización incremental — fuente única: dokkaninfo.com.
@@ -141,11 +141,8 @@ function categorizeCatalogRows(rows: DkCardRow[]): CatalogDiff {
   return { stateChanged, changed, added };
 }
 
-function buildFetchQueue(diff: CatalogDiff): { queue: DkCardRow[]; leftOver: number } {
-  const pendingTotal = diff.stateChanged.length + diff.changed.length + diff.added.length;
-  const queue = [...diff.stateChanged, ...diff.changed, ...diff.added].slice(0, MAX_FETCHES_PER_RUN);
-  const leftOver = pendingTotal - queue.length;
-  return { queue, leftOver };
+function buildFetchQueue(diff: CatalogDiff): DkCardRow[] {
+  return [...diff.stateChanged, ...diff.changed, ...diff.added].slice(0, MAX_FETCHES_PER_RUN);
 }
 
 async function fetchAndNormalizeDetails(queue: DkCardRow[]): Promise<NormalizedUnit[]> {
@@ -215,9 +212,7 @@ interface NormalizedUnit {
 
 async function applyAndCacheResults(
   normalized: NormalizedUnit[],
-  syncedAt: number,
-  leftOver: number,
-  failed: number
+  syncedAt: number
 ): Promise<void> {
   const counts = await applySyncResult({ normalized: normalized.map(n => ({ summary: n.summary, detail: n.detail, hash: n.hash })), removedIds: [], syncedAt });
   await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
@@ -254,7 +249,7 @@ async function syncFromDokkaninfo(): Promise<void> {
   if (!rows) throw new Error('Fuente dokkaninfo no disponible');
 
   const diff = categorizeCatalogRows(rows);
-  const { queue, leftOver } = buildFetchQueue(diff);
+  const queue = buildFetchQueue(diff);
 
   if (queue.length === 0) {
     const syncedAt = Date.now();
@@ -267,8 +262,7 @@ async function syncFromDokkaninfo(): Promise<void> {
 
   const normalized = await fetchAndNormalizeDetails(queue);
   const syncedAt = Date.now();
-  const failed = queue.length - normalized.length;
-  await applyAndCacheResults(normalized, syncedAt, leftOver, failed);
+  await applyAndCacheResults(normalized, syncedAt);
 }
 
 /** Función principal de sincronización (una corrida completa). */
@@ -279,6 +273,7 @@ async function syncOnce(): Promise<void> {
     await syncFromDokkaninfo();
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
+    console.error('[sync] syncOnce error:', detail, e);
     setErrorState(detail);
   }
 }
@@ -289,25 +284,6 @@ function friendlySyncMessage(detail: string): string {
   if (status?.startsWith('5')) return 'La fuente tiene incidencias — mostrando datos de la caché';
   if (status) return `La fuente falló (HTTP ${status}) — mostrando datos de la caché`;
   return 'Sin conexión — mostrando datos de la caché';
-}
-
-export async function checkOnOpen(): Promise<void> {
-  const meta = await readSyncMeta();
-  if (syncState.value.lastSuccessAt === null && meta.lastSuccessAt !== null) {
-    syncState.value = { ...syncState.value, lastSuccessAt: meta.lastSuccessAt };
-  }
-  await writeSyncMeta({ ...meta, lastAttemptAt: Date.now() });
-  await syncOnce();
-}
-
-export async function maybeCheckOnOpen(): Promise<void> {
-  const meta = await readSyncMeta();
-  const last = meta.lastAttemptAt ?? 0;
-  if (Date.now() - last < CHECK_INTERVAL_MS) {
-    syncState.value = idleState(meta.lastSuccessAt);
-    return;
-  }
-  await checkOnOpen();
 }
 
 let refreshInFlight = false;

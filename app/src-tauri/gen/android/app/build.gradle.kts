@@ -4,7 +4,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("rust")
 }
 
 val tauriProperties = Properties().apply {
@@ -14,7 +13,18 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Configuración de firma para release
+val keystoreFile = file("dokkan-fan.keystore")
+
 android {
+    signingConfigs {
+        create("release") {
+            storeFile = keystoreFile
+            storePassword = "eldirk"
+            keyAlias = "dokkan"
+            keyPassword = "eldirk"
+        }
+    }
     compileSdk = 37
     namespace = "fan.dokkanguide.global"
     defaultConfig {
@@ -39,6 +49,7 @@ android {
             }
         }
         getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                enable = true
             }
@@ -63,10 +74,6 @@ kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_1_8
     }
-}
-
-rust {
-    rootDirRel = "../../../"
 }
 
 dependencies {

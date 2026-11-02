@@ -13,6 +13,10 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  android: {
+    // Sin zoom por gestos (pellizco/doble toque) en el APK.
+    zoomEnabled: false,
+  },
 };
 
 export default config;

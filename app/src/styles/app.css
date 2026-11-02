@@ -285,6 +285,9 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* Red de seguridad: ninguna pantalla debe desplazarse en horizontal.
+     `clip` no crea contenedor de scroll, así que no rompe el sticky del header. */
+  overflow-x: clip;
 }
 
 body {
@@ -480,7 +483,7 @@ a {
   flex-wrap: wrap;
   gap: 8px;
   flex: 1 1 auto;
-  min-width: 200px;
+  min-width: min(200px, 100%); /* nunca más ancho que su contenedor */
 }
 
 .app-header__refresh {
@@ -627,6 +630,7 @@ a {
   .app-header__nav {
     order: 2;
     justify-content: center;
+    width: 100%;
   }
   .app-header__legal {
     order: 3;
@@ -637,7 +641,9 @@ a {
 .app-header__nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* las 11 pestañas se reparten en varias filas en pantallas estrechas */
   gap: 4px;
+  position: relative; /* ancla de los menús desplegables en móvil */
 }
 
 .app-header__link {
@@ -662,6 +668,212 @@ a {
   letter-spacing: 0.02em;
 }
 
+/* ---------- Dropdown Navigation ---------- */
+.app-header__dropdown {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.app-header__dropdown:hover .app-header__dropdown-menu,
+.app-header__dropdown:focus-within .app-header__dropdown-menu {
+  display: flex;
+}
+
+.app-header__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: background var(--transition), color var(--transition);
+}
+
+.app-header__chevron {
+  font-size: 9px;
+  line-height: 1;
+  transition: transform var(--transition);
+  color: var(--text-dim);
+}
+
+.app-header__dropdown[aria-expanded="true"] .app-header__chevron {
+  transform: rotate(180deg);
+}
+
+.app-header__dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  max-width: calc(100vw - 24px); /* nunca más ancho que la pantalla */
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  padding: 6px 0;
+  margin-top: -1px; /* Overlap border to eliminate gap */
+}
+
+[data-theme="light"] .app-header__dropdown-menu {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Pantalla ancha: las pestañas de la derecha abren su menú hacia la izquierda
+   para no salirse del borde. */
+@media (min-width: 1025px) {
+  .app-header__dropdown:nth-last-child(-n+4) .app-header__dropdown-menu {
+    left: auto;
+    right: 0;
+  }
+}
+
+/* Pantallas estrechas (móvil/tablet): los menús se anclan a la nav completa
+   (no a la pestaña), así nunca sobresalen del borde de la pantalla. */
+@media (max-width: 1024px) {
+  .app-header__dropdown {
+    position: static;
+  }
+  .app-header__dropdown-menu {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+.app-header__dropdown-item {
+  display: block;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+
+.app-header__dropdown-item:hover,
+.app-header__dropdown-item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--accent);
+}
+
+/* Sub-tabs for Items, Missions, Tools, Events sections */
+.items-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.items-tab {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+.items-tab:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.items-tab--active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.items-tabs[aria-label="Tipos de eventos"] .items-tab--active {
+  background: #e53935;
+  border-color: #e53935;
+}
+
+.items-tabs[aria-label="Tipos de items"] .items-tab--active {
+  background: #7b5b2e;
+  border-color: #a9803f;
+}
+
+.items-tabs[aria-label="Tipos de misiones"] .items-tab--active {
+  background: #8e6b1d;
+  border-color: #a9803f;
+}
+
+.items-tabs[aria-label="Herramientas"] .items-tab--active {
+  background: #4a7a45;
+  border-color: #66bb6a;
+}
+
+/* Info section styles */
+.info-section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.info-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--accent);
+}
+
+.info-section p {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.info-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.info-section li {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.info-section li strong {
+  color: var(--text);
+}
+
+.info-section a {
+  color: #90caf9;
+}
+
+.info-section a:hover {
+  color: var(--accent);
+}
+
+/* Tool views */
+.tool-link-tool,
+.tool-leader-skill {
+  padding: 16px;
+}
+
+.tool-link-tool h3,
+.tool-leader-skill h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--accent);
+}
+
 /* ---------- Barra de filtros ---------- */
 
 .filter-bar {
@@ -678,7 +890,7 @@ a {
 
 .filter-bar__input {
   flex: 1 1 240px;
-  min-width: 180px;
+  min-width: min(180px, 100%);
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -933,7 +1145,7 @@ a {
 /* Category filter - multi-select */
 .filter-bar__section--categories {
   flex: 1 1 100%;
-  min-width: 280px;
+  min-width: min(280px, 100%); /* nunca más ancho que su contenedor */
 }
 
 .filter-bar__section--categories .filter-bar__legend {
@@ -1131,7 +1343,7 @@ a {
 /* ===== Category Dropdown (new compact design) ===== */
 .filter-bar__section--categories {
   flex: 1 1 auto;
-  min-width: 180px;
+  min-width: min(180px, 100%);
 }
 
 .filter-bar__cat-dropdown {
@@ -1500,9 +1712,9 @@ a {
 /* Dimensiones de la tarjeta (las lee también UnitGrid en JS para la
    virtualización: una sola fuente de verdad CSS ↔ JS) */
 :root {
-  --card-row: 224px; /* alto de celda (la fila completa = var + gap) */
-  --card-ideal: 168px; /* ancho ideal de columna */
-  --card-min: 150px; /* ancho mínimo de columna */
+  --card-row: 200px; /* alto de celda (la fila completa = var + gap) */
+  --card-ideal: 148px; /* ancho ideal de columna */
+  --card-min: 130px; /* ancho mínimo de columna */
 }
 
 .unit-grid {
@@ -1683,6 +1895,14 @@ a {
   .app-header__nav {
     width: 100%;
     justify-content: flex-start;
+    gap: 3px; /* pestañas compactas: las 11 caben en 2 filas sin desbordar */
+  }
+  .app-header__link {
+    padding: 5px 7px;
+    font-size: 11.5px;
+  }
+  .app-header__chevron {
+    font-size: 8px;
   }
 
   .filter-bar {
@@ -1754,15 +1974,15 @@ a {
   /* Tarjetas compactas: 2-3 por fila en móvil (el arte se escala en vez de
      recortarse; UnitGrid lee --card-row para cuadrar la virtualización) */
   :root {
-    --card-row: 168px;
-    --card-ideal: 104px;
-    --card-min: 96px;
+    --card-row: 152px;
+    --card-ideal: 92px;
+    --card-min: 84px;
   }
 
   /* El arte es fluido (calc(100% - 16px)) y se escala con su columna; aquí
      solo se ajusta su tope para que la celda siga cuadrando con --card-row */
   .unit-card__art {
-    max-width: 128px;
+    max-width: 112px;
     margin-top: 8px;
   }
 
@@ -1772,6 +1992,25 @@ a {
     font-size: 14px;
     line-height: 18px;
     font-weight: 500;
+  }
+}
+
+/* Tablet: tarjetas intermedias */
+@media (min-width: 641px) and (max-width: 1024px) {
+  :root {
+    --card-row: 176px;
+    --card-ideal: 116px;
+    --card-min: 104px;
+  }
+  .unit-card__art {
+    max-width: 136px;
+    margin-top: 10px;
+  }
+  .unit-card__name {
+    margin: 5px 7px 0;
+    height: 38px;
+    font-size: 14.5px;
+    line-height: 19px;
   }
 }
 
@@ -2870,7 +3109,7 @@ a {
 
 .acq-banners {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 10px;
 }
 
@@ -3068,7 +3307,7 @@ a {
 
 .baba-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -3544,7 +3783,7 @@ button.baba-jewel:focus-visible {
 /* ===== Obtención: tarjetas de evento con imagen y enlace ===== */
 .acq-events {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
   gap: 10px;
 }
 
@@ -3679,7 +3918,7 @@ button.baba-jewel:focus-visible {
 /* ===== Fase 9 · Eventos: tarjeta con foto + etapas y drops (dokkaninfo) ===== */
 .ev-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -4175,7 +4414,7 @@ a.acq-chip {
 /* ===== Ficha · Miniaturas de unidades (líderes 170%+, partners) ===== */
 .mini-units {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 8px;
 }
 
@@ -4323,7 +4562,7 @@ a.acq-chip {
 
 .cat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
 

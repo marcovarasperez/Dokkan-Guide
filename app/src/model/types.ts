@@ -51,6 +51,48 @@ export interface UnitSummary {
   isExchangeForm: boolean;
 }
 
+/** Efecto de un link (Nv.1 / Nv.10) — de links.index.json. */
+export interface LinkEntry {
+  id: number;
+  name: string;
+  lv1: string;
+  lv10: string;
+}
+
+/** Índice de links — de links.index.json (tools/wiki_sync.mjs). */
+export interface LinksIndex {
+  schemaVersion: number;
+  generatedAt: string;
+  source: string;
+  links: LinkEntry[];
+}
+
+/** Categoría con su mejor líder — de categories.index.json. */
+export interface CategoryEntry {
+  id: number;
+  name: string;
+  bestLeaderId: number | null;
+  bestLeaderName: string | null;
+}
+
+/** Líder de categoría con su boost (%) — de categories.index.json. */
+export interface CategoryLeader {
+  id: number;
+  boost: number | null;
+}
+
+/** Índice de categorías — de categories.index.json (tools/categories_sync.mjs). */
+export interface CategoriesIndex {
+  schemaVersion: number;
+  generatedAt: string;
+  source: string;
+  categories: CategoryEntry[];
+  /** clave: id de categoría (string) → líderes ordenados por boost desc. */
+  leaders: Record<string, CategoryLeader[]>;
+  /** clave: id de categoría (string) → ids de sus miembros. */
+  members: Record<string, number[]>;
+}
+
 export interface SeedMeta {
   schemaVersion: number;
   generatedAt: string;

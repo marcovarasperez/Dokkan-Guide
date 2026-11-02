@@ -215,6 +215,8 @@ export interface DkCard {
   optimal_awakening_step: number | null;
   /** Tipo de crecimiento del EZA (null = sin EZA conocido). */
   optimal_awakening_grow_type: number | null;
+  /** 1 si la carta tiene EZA en juego. */
+  eza: number | null;
   /** Tablero de potential: define el bonus plano de la columna "+55%" (1200/2000/2800/1600). */
   potential_board_id: number | null;
 }

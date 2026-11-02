@@ -1,1 +1,0 @@
-v-bind:cardsjson="[{&quot;id&quot;:1000010,&quot;name&quot;:&quot;Super Saiyan Goku&quot;,&quot;rarity&quot;:3,&quot;lv_max&quot;:80,&quot;optimal_awakening_grow_type&quot;:null,&quot;optimal_awakenin

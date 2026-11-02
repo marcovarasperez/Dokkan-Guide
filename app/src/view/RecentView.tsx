@@ -53,12 +53,6 @@ export default function RecentView() {
   return (
     <div class="feed-scroll">
       <div class="feed feed--banners">
-        <div class="feed__head">
-          <h2>Personajes recientes</h2>
-          <span class="feed__status">
-            {recentUnits.length} personajes (último despertar de cada uno)
-          </span>
-        </div>
         {recentUnits.length === 0 ? (
           <p class="empty-state">No hay datos de personajes recientes.</p>
         ) : (

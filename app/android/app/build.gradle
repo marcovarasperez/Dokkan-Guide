@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Keystore de firma de release (identidad de la app). No se versiona en git.
+// Ver docs/BUILD.md · "Release (opcional)". Cambiar storepass/keypass si se
+// genera un keystore distinto.
+// Ubicación: raíz del repo (Dokkan-Guide/dokkan-fan.keystore); rootProject es
+// app/android, por eso ../../
+def releaseKeystore = rootProject.file('../../dokkan-fan.keystore')
+
 android {
     namespace = "fan.dokkanguide.global"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +23,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            // Solo se aplica si el keystore existe; si no, Gradle sigue sin
+            // firmar (y assembleRelease avisa en vez de fallar en seco).
+            if (releaseKeystore.exists()) {
+                storeFile releaseKeystore
+                storePassword 'eldirk'
+                keyAlias 'dokkan'
+                keyPassword 'eldirk'
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseKeystore.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
@@ -36,6 +58,11 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // Plugin OkHttp (fan.dokkanguide.global.OkHttpPlugin): Cloudflare devuelve
+    // 403 a HTTP/1.1, y HttpURLConnection (CapacitorHttp) solo habla HTTP/1.1.
+    // OkHttp negocia HTTP/2 por ALPN sobre Conscrypt → misma firma que aprueba
+    // el servidor. Ver docs/ y el Javadoc del plugin.
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

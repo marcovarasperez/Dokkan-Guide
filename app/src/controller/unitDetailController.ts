@@ -12,7 +12,7 @@ import type { HpSeed } from '../model/hp';
 import { TYPE_COLORS } from '../model/adapter';
 import { potentialFlatBonus } from '../model/constants';
 import { loadLinksIndex } from '../model/wiki';
-import type { LinksIndex } from '../model/wiki';
+import type { LinksIndex } from '../model/types';
 import { startCardAnim } from '../model/cardAnim';
 import { syncState } from '../model/sync';
 
@@ -70,6 +70,31 @@ export const normalizeSaStyle = (style: string): string => {
   if (s === 'normal' || s === '') return 'Normal';
   return style;
 };
+
+/**
+ * Determina el grupo correcto para un super attack.
+ * - Primero usa el estilo normalizado (Normal, Ultra, Unit, EX).
+ * - Si el estilo es desconocido, analiza la CONDICIÓN:
+ *   - "Super Attack to become an EX Super Attack" → EX Super Attack
+ *   - "Activated when..." (Ki, aliados, etc.) → Unit Super Attack
+ *   - Cualquier otro → EX Super Attack (fallback conservador)
+ */
+function getSaGroup(sa: { style: string; condition: string | null }): { style: string; title: string; mod: string } {
+  const normalized = normalizeSaStyle(sa.style);
+  const known = SA_GROUPS.find((g) => g.style === normalized);
+  if (known) return known;
+
+  // Estilo desconocido: decidir por la condición
+  const cond = (sa.condition ?? '').toLowerCase();
+  if (cond.includes('super attack to become an ex super attack')) {
+    return SA_GROUPS.find((g) => g.style === 'EX')!;
+  }
+  if (cond.includes('activated when')) {
+    return SA_GROUPS.find((g) => g.style === 'Unit')!;
+  }
+  // Fallback conservador
+  return SA_GROUPS.find((g) => g.style === 'EX')!;
+}
 
 /** ¿Queda en el futuro? (epoch seconds → chip "previsto" en las fechas). */
 export const isFuture = (epochSec: number | null): boolean =>
@@ -372,18 +397,12 @@ export function useUnitDetail(id: number) {
   const stats = viewFull?.stats ?? summary?.stats ?? ZERO_STATS;
 
   // Super Attacks divididas por tipo (Super / Ultra / Unit / EX), como el
-  // jugador las distingue (estilo normalizado desde dokkaninfo).
+  // jugador las distingue (estilo normalizado desde dokkaninfo + análisis de condición).
   const allSa = stateData?.superAttacks ?? (baseTexts ? viewFull?.superAttacks ?? [] : []);
-  const knownStyles = SA_GROUPS.map((g) => g.style);
-  const saGroups = [
-    ...SA_GROUPS.map((g) => ({ ...g, list: allSa.filter((s) => normalizeSaStyle(s.style) === g.style) })),
-    {
-      style: '',
-      title: 'Otras',
-      mod: 'normal',
-      list: allSa.filter((s) => !knownStyles.includes(normalizeSaStyle(s.style))),
-    },
-  ].filter((g) => g.list.length > 0);
+  const saGroups = SA_GROUPS.map((g) => ({
+    ...g,
+    list: allSa.filter((s) => getSaGroup(s).style === g.style),
+  })).filter((g) => g.list.length > 0);
   const saMaxLevel =
     stateData?.maxSaLevel ?? (baseTexts ? viewFull?.maxSaLevel ?? summary?.maxSALevel ?? 0 : 0);
 

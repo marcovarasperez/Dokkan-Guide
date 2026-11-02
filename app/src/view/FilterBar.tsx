@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'preact/hooks';
-import type { UnitClass, UnitRarity, UnitType, UnitSummary } from '../model/types';
+import type { UnitClass, UnitRarity, UnitType } from '../model/types';
 import { TYPE_COLORS, CLASS_COLORS, RARITY_COLORS } from '../model/adapter';
-import type { CategoryEntry } from '../model/wiki';
+import type { CategoryEntry } from '../model/types';
 
 const TYPES: UnitType[] = ['AGL', 'TEQ', 'INT', 'STR', 'PHY'];
 const CLASSES: { key: UnitClass; label: string }[] = [
@@ -63,12 +63,7 @@ export default function FilterBar(props: FilterBarProps) {
   const catDropdownRef = useRef<HTMLDivElement>(null);
   const catTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const hasFilters =
-    selectedTypes.length > 0 || selectedClasses.length > 0 || selectedRarities.length > 0 || selectedCategories.length > 0;
-  const nonDefaultSort = sortBy !== 'recent' || sortDesc;
   const activeCount = selectedTypes.length + selectedClasses.length + selectedRarities.length + selectedCategories.length;
-
-  const sortOption = SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Última novedad';
 
   // Always show all rarities (N, R, SR, SSR, UR, LR) so user can filter by any rarity
   const availableRarities = ALL_RARITIES;
@@ -79,12 +74,6 @@ export default function FilterBar(props: FilterBarProps) {
       .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()))
       .sort((a, b) => a.name.localeCompare(b.name, 'es')) ?? [],
     [categoriesIndex, catSearch]
-  );
-
-  // Categorías seleccionadas con info
-  const selectedCatsInfo = useMemo(() =>
-    selectedCategories.map(id => categoriesIndex?.categories.find(c => c.id === id)).filter(Boolean) as CategoryEntry[],
-    [selectedCategories, categoriesIndex]
   );
 
   const handleCategoryChange = (catId: number) => {

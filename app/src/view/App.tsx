@@ -22,6 +22,11 @@ import EventosView from './EventosView';
 import BabaView from './BabaView';
 import { SettingsView } from './SettingsView';
 import RecentView from './RecentView';
+import LinksView from './LinksView';
+import ItemsView from './ItemsView';
+import MissionsView from './MissionsView';
+import ToolsView from './ToolsView';
+import InfoView from './InfoView';
 
 /** Aplica el tema guardado (dark por defecto) al arrancar */
 function applySavedTheme(): void {
@@ -82,6 +87,27 @@ export default function App() {
   const category = categoryId.value;
   const focus = eventsFocus.value;
 
+  // Helper para vistas que usan el listado de personajes con filtros
+  const isListView = currentView === 'list' || currentView === 'cards' || currentView === 'categories' || currentView === 'links';
+  const isDetailView = currentView === 'detail';
+  const isNewsView = currentView === 'news' || currentView === 'newsDetail';
+  const isBannersView = currentView === 'banners' || currentView === 'bannerDetail' || currentView === 'bannerAnimations';
+  const isEventsView = [
+    'events', 'eventsBurst', 'eventsBonus', 'eventsDbStories',
+    'eventsExtremeZBattle', 'eventsGrowth', 'eventsLimited',
+    'eventsPettanBattle', 'eventsQuest', 'eventsStory',
+    'eventsDokkanFrontier', 'eventsUltimateClash', 'eventsWorldTournament'
+  ].includes(currentView);
+  const isItemsView = [
+    'items', 'itemsMeat', 'itemsAwakeningMedals', 'itemsEquipment',
+    'itemsKeys', 'itemsPotentialItems', 'itemsSpecialItems',
+    'itemsStickers', 'itemsSupportItems', 'itemsSupportMemories',
+    'itemsTrainingFields', 'itemsTrainingItems', 'itemsTreasureItems',
+    'itemsWallpapers'
+  ].includes(currentView);
+  const isMissionsView = currentView === 'missions' || currentView === 'panelMissions';
+  const isToolsView = currentView === 'tools' || currentView === 'toolsLinkTool' || currentView === 'toolsLeaderSkill';
+
   return (
     <div class="app-shell">
       <div class="app-top">
@@ -89,27 +115,70 @@ export default function App() {
       </div>
       {currentView === 'recent' ? (
         <RecentView />
-      ) : currentView === 'news' ? (
+      ) : isNewsView ? (
         newsDetail !== null ? <NewsDetail id={newsDetail} /> : <NewsView />
-      ) : currentView === 'bannerDetail' && bannerDetail !== null ? (
+      ) : isBannersView && bannerDetail !== null ? (
         <BannerDetail id={bannerDetail} units={units} />
-      ) : currentView === 'banners' ? (
+      ) : isBannersView ? (
         <BannersView />
-      ) : currentView === 'events' ? (
+      ) : isEventsView ? (
         <EventosView focus={focus} />
+      ) : isItemsView ? (
+        <ItemsView />
+      ) : isMissionsView ? (
+        <MissionsView />
       ) : currentView === 'baba' ? (
         <BabaView />
+      ) : isToolsView ? (
+        <ToolsView />
+      ) : currentView === 'info' ? (
+        <InfoView />
       ) : currentView === 'settings' ? (
         <SettingsView />
       ) : currentView === 'categories' ? (
         <CategoryView id={category} units={units} />
-      ) : detail !== null ? (
+      ) : currentView === 'links' ? (
+        <LinksView />
+      ) : isDetailView ? (
         units.length === 0 ? (
           <p class="empty-state">Cargando datos…</p>
         ) : (
           <div class="detail-scroll">
             <UnitDetail id={detail} />
           </div>
+        )
+      ) : isListView ? (
+        units.length === 0 ? (
+          <p class="empty-state">Cargando datos…</p>
+        ) : (
+          <>
+            <FilterBar
+              query={query}
+              onQuery={onQuery}
+              selectedTypes={selectedTypes}
+              onToggleType={onToggleType}
+              selectedClasses={selectedClasses}
+              onToggleClass={onToggleClass}
+              selectedRarities={selectedRarities}
+              onToggleRarity={onToggleRarity}
+              selectedCategories={selectedCategories}
+              onToggleCategory={onToggleCategory}
+              categoryFilterMode={categoryFilterMode}
+              onToggleCategoryMode={onToggleCategoryMode}
+              categoriesIndex={categoriesIndex}
+              sortBy={sortBy}
+              onSortBy={onSortBy}
+              onClear={onClear}
+              sortDesc={sortDesc}
+              onToggleSort={onToggleSort}
+              count={count}
+            />
+            {count === 0 ? (
+              <p class="empty-state">Sin resultados con los filtros actuales.</p>
+            ) : (
+              <UnitGrid units={list} />
+            )}
+          </>
         )
       ) : units.length === 0 ? (
         <p class="empty-state">Cargando datos…</p>

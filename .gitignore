@@ -21,3 +21,9 @@ app/src-tauri/gen/schemas/
 tools/.drops-cache.json
 # Caché regenerable de tools/zbattles_sync.mjs (7 días)
 tools/.zbattles-cache.json
+
+# Keystore de firma de release (identidad de la app; si se pierde no se pueden
+# publicar actualizaciones). No subirlo al repo ni la contraseña.
+dokkan-fan.keystore
+*.keystore
+*.jks

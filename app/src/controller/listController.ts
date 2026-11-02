@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import type { UnitClass, UnitRarity, UnitSummary, UnitType } from '../model/types';
-import { getUnits, getUnitsForList, getUpdatedAt, loadRepository } from '../model/repository';
-import { startAutoRefresh, syncState, manualRefresh } from '../model/sync';
+import { getUnitsForList, getUpdatedAt, loadRepository } from '../model/repository';
+import { startAutoRefresh, syncState } from '../model/sync';
 import { loadSeedIfEmpty } from '../model/news';
 import { loadCategoriesIndex } from '../model/wiki';
-import type { CategoriesIndex } from '../model/wiki';
+import type { CategoriesIndex } from '../model/types';
 
 /**
  * CONTROLADOR · Listado de personajes (búsqueda, filtros y orden).

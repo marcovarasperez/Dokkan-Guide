@@ -59,24 +59,97 @@ export const eventsFocus = computed<{ type: string; id: number } | null>(() => {
 export type View =
   | 'list'
   | 'detail'
+  | 'recent'
   | 'news'
+  | 'newsDetail'
   | 'banners'
   | 'bannerDetail'
-  | 'events'
-  | 'baba'
+  | 'bannerAnimations'
+  | 'cards'
   | 'categories'
-  | 'settings'
-  | 'recent';
+  | 'links'
+  | 'events'
+  | 'eventsBurst'
+  | 'eventsBonus'
+  | 'eventsDbStories'
+  | 'eventsExtremeZBattle'
+  | 'eventsGrowth'
+  | 'eventsLimited'
+  | 'eventsPettanBattle'
+  | 'eventsQuest'
+  | 'eventsStory'
+  | 'eventsDokkanFrontier'
+  | 'eventsUltimateClash'
+  | 'eventsWorldTournament'
+  | 'items'
+  | 'itemsMeat'
+  | 'itemsAwakeningMedals'
+  | 'itemsEquipment'
+  | 'itemsKeys'
+  | 'itemsPotentialItems'
+  | 'itemsSpecialItems'
+  | 'itemsStickers'
+  | 'itemsSupportItems'
+  | 'itemsSupportMemories'
+  | 'itemsTrainingFields'
+  | 'itemsTrainingItems'
+  | 'itemsTreasureItems'
+  | 'itemsWallpapers'
+  | 'missions'
+  | 'panelMissions'
+  | 'baba'
+  | 'tools'
+  | 'toolsLinkTool'
+  | 'toolsLeaderSkill'
+  | 'info'
+  | 'settings';
 
 /** Vista activa derivada de la ruta (el orden importa: lo más específico gana). */
 export const view = computed<View>(() => {
-  if (route.value.startsWith('#/noticias')) return 'news';
+  if (route.value.startsWith('#/noticias')) {
+    if (newsDetailId.value !== null) return 'newsDetail';
+    return 'news';
+  }
   if (bannerDetailId.value !== null) return 'bannerDetail';
+  if (route.value.startsWith('#/banners/animaciones')) return 'bannerAnimations';
   if (route.value.startsWith('#/banners')) return 'banners';
-  // '#/juego' (ruta antigua) sigue abriendo Eventos.
+  if (route.value.startsWith('#/cartas/categorias')) return 'categories';
+  if (route.value.startsWith('#/cartas/links')) return 'links';
+  if (route.value.startsWith('#/cartas')) return 'cards';
+  if (route.value.startsWith('#/eventos/burst')) return 'eventsBurst';
+  if (route.value.startsWith('#/eventos/bonus')) return 'eventsBonus';
+  if (route.value.startsWith('#/eventos/dbstories')) return 'eventsDbStories';
+  if (route.value.startsWith('#/eventos/extreme-z-battle')) return 'eventsExtremeZBattle';
+  if (route.value.startsWith('#/eventos/growth')) return 'eventsGrowth';
+  if (route.value.startsWith('#/eventos/limited')) return 'eventsLimited';
+  if (route.value.startsWith('#/eventos/pettan-battle')) return 'eventsPettanBattle';
+  if (route.value.startsWith('#/eventos/quest')) return 'eventsQuest';
+  if (route.value.startsWith('#/eventos/story')) return 'eventsStory';
+  if (route.value.startsWith('#/eventos/dokkan-frontier')) return 'eventsDokkanFrontier';
+  if (route.value.startsWith('#/eventos/ultimate-clash')) return 'eventsUltimateClash';
+  if (route.value.startsWith('#/eventos/world-tournament')) return 'eventsWorldTournament';
   if (route.value.startsWith('#/eventos') || route.value.startsWith('#/juego')) return 'events';
+  if (route.value.startsWith('#/items/carne')) return 'itemsMeat';
+  if (route.value.startsWith('#/items/medallas-despertar')) return 'itemsAwakeningMedals';
+  if (route.value.startsWith('#/items/equipamiento')) return 'itemsEquipment';
+  if (route.value.startsWith('#/items/llaves')) return 'itemsKeys';
+  if (route.value.startsWith('#/items/objetos-potencial')) return 'itemsPotentialItems';
+  if (route.value.startsWith('#/items/objetos-especiales')) return 'itemsSpecialItems';
+  if (route.value.startsWith('#/items/stickers')) return 'itemsStickers';
+  if (route.value.startsWith('#/items/objetos-apoyo')) return 'itemsSupportItems';
+  if (route.value.startsWith('#/items/memorias-apoyo')) return 'itemsSupportMemories';
+  if (route.value.startsWith('#/items/campos-entrenamiento')) return 'itemsTrainingFields';
+  if (route.value.startsWith('#/items/objetos-entrenamiento')) return 'itemsTrainingItems';
+  if (route.value.startsWith('#/items/objetos-tesoro')) return 'itemsTreasureItems';
+  if (route.value.startsWith('#/items/wallpapers')) return 'itemsWallpapers';
+  if (route.value.startsWith('#/items')) return 'items';
+  if (route.value.startsWith('#/misiones/panel')) return 'panelMissions';
+  if (route.value.startsWith('#/misiones')) return 'missions';
   if (route.value.startsWith('#/baba')) return 'baba';
-  if (route.value.startsWith('#/categorias')) return 'categories';
+  if (route.value.startsWith('#/herramientas/link-tool')) return 'toolsLinkTool';
+  if (route.value.startsWith('#/herramientas/leader-skill')) return 'toolsLeaderSkill';
+  if (route.value.startsWith('#/herramientas')) return 'tools';
+  if (route.value.startsWith('#/info')) return 'info';
   if (route.value.startsWith('#/ajustes')) return 'settings';
   if (route.value.startsWith('#/recientes')) return 'recent';
   return detailId.value !== null ? 'detail' : 'list';

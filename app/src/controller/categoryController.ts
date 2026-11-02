@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { UnitSummary } from '../model/types';
 import { loadCategoriesIndex } from '../model/wiki';
-import type { CategoriesIndex, CategoryEntry, CategoryLeader } from '../model/wiki';
+import type { CategoriesIndex, CategoryEntry, CategoryLeader } from '../model/types';
 import type { MiniUnit } from '../model/detail';
 
 /**
