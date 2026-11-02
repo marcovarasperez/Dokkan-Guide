@@ -15,8 +15,8 @@ export const INFO_ASSET = `${INFO_CDN}/assets/global/en`;
 /** Intervalo de auto-refresco (5 minutos) */
 export const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
-/** Máximo de fichas descargadas por corrida de sync */
-export const MAX_FETCHES_PER_RUN = 50;
+/** Máximo de fichas descargadas por corrida de sync (típico: 0-5 cambios/día) */
+export const MAX_FETCHES_PER_RUN = 15;
 
 /** Clave de meta de sincronización */
 export const SYNC_META_KEY = 'sync';

@@ -146,9 +146,20 @@ function buildFetchQueue(diff: CatalogDiff): DkCardRow[] {
   return [...diff.stateChanged, ...diff.changed, ...diff.added].slice(0, MAX_FETCHES_PER_RUN);
 }
 
+// Concurrencia máxima de peticiones de detalle paralelas
+const MAX_CONCURRENT_DETAIL_FETCHES = 4;
+
+// Caché en memoria de índices pesados (drops, Z-Battles)
+let cachedDropsIndex: Awaited<ReturnType<typeof loadDropsIndex>> | null = null;
+let cachedZbIndex: Awaited<ReturnType<typeof loadZbattlesIndex>> | null = null;
+
 async function fetchAndNormalizeDetails(queue: DkCardRow[]): Promise<NormalizedUnit[]> {
-  const dropsIndex = await loadDropsIndex();
-  const zbIndex = await loadZbattlesIndex();
+  // Cargar índices una sola vez (caché en memoria)
+  if (!cachedDropsIndex) cachedDropsIndex = await loadDropsIndex();
+  if (!cachedZbIndex) cachedZbIndex = await loadZbattlesIndex();
+  const dropsIndex = cachedDropsIndex;
+  const zbIndex = cachedZbIndex;
+
   const normalized: NormalizedUnit[] = [];
   // Mapa characterId -> { id, openAt } de la base ya en repo + las que vamos añadiendo
   const charBaseMap = new Map<number, { id: number; openAt: number | null }>();
@@ -158,48 +169,56 @@ async function fetchAndNormalizeDetails(queue: DkCardRow[]): Promise<NormalizedU
     }
   }
 
-  for (const row of queue) {
-    try {
-      const page = parseCardPage(await fetchInfoText(`/cards/${row.id}`));
-      if (!page) continue;
-      const prevStats = getUnit(row.id)?.stats ?? null;
-      const characterId = page.card.character_id ?? null;
-      let isExchangeForm = false;
+  // Procesar en lotes paralelos con concurrencia limitada
+  for (let i = 0; i < queue.length; i += MAX_CONCURRENT_DETAIL_FETCHES) {
+    const batch = queue.slice(i, i + MAX_CONCURRENT_DETAIL_FETCHES);
 
-      // Detectar exchange form: mismo characterId que otra unidad con openAt anterior
-      if (characterId != null) {
-        const base = charBaseMap.get(characterId);
-        const rowOpenAt = row.open_at ?? 0;
-        if (base && base.openAt !== null && rowOpenAt > base.openAt) {
-          isExchangeForm = true;
-        } else {
-          // Esta es la base (o la primera que vemos): registrarla
-          charBaseMap.set(characterId, { id: row.id, openAt: rowOpenAt });
+    const results = await Promise.allSettled(
+      batch.map(async (row) => {
+        const page = parseCardPage(await fetchInfoText(`/cards/${row.id}`));
+        if (!page) return null;
+
+        const prevStats = getUnit(row.id)?.stats ?? null;
+        const characterId = page.card.character_id ?? null;
+        let isExchangeForm = false;
+
+        // Detectar exchange form: mismo characterId que otra unidad con openAt anterior
+        if (characterId != null) {
+          const base = charBaseMap.get(characterId);
+          const rowOpenAt = row.open_at ?? 0;
+          if (base && base.openAt !== null && rowOpenAt > base.openAt) {
+            isExchangeForm = true;
+          } else {
+            charBaseMap.set(characterId, { id: row.id, openAt: rowOpenAt });
+          }
         }
-      }
 
-      if (isExchangeForm) {
-        // Forma intercambiada: no la añadimos al listado principal
-        continue;
-      }
+        if (isExchangeForm) return null;
 
-      const summary = summaryFromCardPage(row.id, page, {
-        hasEza: row.eza === 1,
-        hasSeza: row.seza === 1,
-        openAt: row.open_at,
-        ezaOpenAt: row.eza_open_at,
-        sezaOpenAt: row.seza_open_at,
-        prevStats,
-        characterId,
-        isExchangeForm: false,
-      });
-      normalized.push({
-        summary,
-        detail: fullFromCardPage(page, dropsIndex, zbIndex, prevStats),
-        hash: rowHash(row),
-      });
-    } catch {
-      /* unidad puntual: se reintenta en la próxima corrida */
+        const summary = summaryFromCardPage(row.id, page, {
+          hasEza: row.eza === 1,
+          hasSeza: row.seza === 1,
+          openAt: row.open_at,
+          ezaOpenAt: row.eza_open_at,
+          sezaOpenAt: row.seza_open_at,
+          prevStats,
+          characterId,
+          isExchangeForm: false,
+        });
+        return {
+          summary,
+          detail: fullFromCardPage(page, dropsIndex, zbIndex, prevStats),
+          hash: rowHash(row),
+        };
+      })
+    );
+
+    // Recoger resultados exitosos
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        normalized.push(result.value);
+      }
+      // Los errores (rejected) se ignoran → se reintentan en próxima sync
     }
   }
   return normalized;
