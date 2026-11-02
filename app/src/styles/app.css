@@ -652,13 +652,14 @@ a {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text);
   transition: background var(--transition), color var(--transition);
 }
 
 .app-header__link--active {
   background: var(--panel-2);
-  color: #ffffff;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .app-header__legal {
@@ -676,11 +677,13 @@ a {
 }
 
 .app-header__dropdown:hover .app-header__dropdown-menu,
-.app-header__dropdown:focus-within .app-header__dropdown-menu {
+.app-header__dropdown:focus-within .app-header__dropdown-menu,
+.app-header__dropdown[aria-expanded="true"] .app-header__dropdown-menu {
   display: flex;
 }
 
-.app-header__link {
+/* Botón que abre dropdown (con chevron) */
+.app-header__dropdown-trigger {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -688,8 +691,16 @@ a {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
   transition: background var(--transition), color var(--transition);
+}
+
+.app-header__dropdown-trigger:hover,
+.app-header__dropdown-trigger:focus-visible {
+  background: var(--panel-2);
 }
 
 .app-header__chevron {
@@ -1897,9 +1908,10 @@ a {
     justify-content: flex-start;
     gap: 3px; /* pestañas compactas: las 11 caben en 2 filas sin desbordar */
   }
-  .app-header__link {
+  .app-header__link,
+  .app-header__dropdown-trigger {
     padding: 5px 7px;
-    font-size: 11.5px;
+    /* Mismo tamaño de fuente (13px) que en desktop para consistencia */
   }
   .app-header__chevron {
     font-size: 8px;
@@ -5168,5 +5180,120 @@ a.acq-chip {
 
   .modal-actions .btn {
     width: 100%;
+  }
+}
+
+/* ---------- Primera ejecución (Onboarding) ---------- */
+.first-run-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 1000;
+  padding: 16px;
+}
+
+.first-run-content {
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.first-run-title {
+  margin: 0 0 16px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.first-run-message {
+  margin: 0 0 24px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.first-run-message strong {
+  color: var(--text);
+}
+
+.first-run-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.first-run-error {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #ffc9c9;
+  background: rgba(244, 67, 54, 0.16);
+  border: 1px solid rgba(244, 67, 54, 0.5);
+  border-radius: 8px;
+}
+
+.first-run-hint {
+  margin: 20px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .first-run-content {
+    padding: 24px 16px;
+  }
+  .first-run-title {
+    font-size: 24px;
+  }
+  .first-run-message {
+    font-size: 14px;
+  }
+  .first-run-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}
+
+/* ---------- Modal de permiso de notificaciones (overlay) ---------- */
+.notif-permission-modal {
+  z-index: 2000; /* Por encima de todo */
+}
+
+.notif-permission-content {
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.notif-permission-content h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .notif-permission-content {
+    padding: 24px 16px;
+    width: 95%;
+  }
+  .notif-permission-content h3 {
+    font-size: 16px;
   }
 }

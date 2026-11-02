@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import {
   bannerDetailId,
   categoryId,
@@ -27,6 +27,12 @@ import ItemsView from './ItemsView';
 import MissionsView from './MissionsView';
 import ToolsView from './ToolsView';
 import InfoView from './InfoView';
+import { manualRefresh, syncState } from '../model/sync';
+import { requestPermission, setNotificationPermissionAsked, areNotificationsEnabled } from '../model/notifications';
+import { readSyncMeta } from '../model/repository';
+
+/** Clave localStorage para marcar primera ejecución completada */
+const FIRST_RUN_KEY = 'firstRunComplete';
 
 /** Aplica el tema guardado (dark por defecto) al arrancar */
 function applySavedTheme(): void {
@@ -37,6 +43,99 @@ function applySavedTheme(): void {
   } catch {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
+}
+
+/** Componente: Pantalla de primera ejecución (solo sincronización inicial) */
+function FirstRunScreen({ onComplete }: { onComplete: () => void }) {
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpdate = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      await manualRefresh();
+      // Marcar primera ejecución como completada
+      try { localStorage.setItem(FIRST_RUN_KEY, 'true'); } catch {}
+      // Navegar a Recientes tras la primera sincronización
+      window.location.hash = '#/recientes';
+      onComplete();
+    } catch (e) {
+      setError('Error al sincronizar. Comprueba tu conexión e inténtalo de nuevo.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div class="first-run-screen">
+      <div class="first-run-content">
+        <h1 class="first-run-title">Dokkan Fan Guide</h1>
+        <p class="first-run-message">
+          Bienvenido. Para usar la aplicación es necesario sincronizar los datos
+          desde <strong>dokkaninfo.com</strong>.
+        </p>
+        <p class="first-run-message" style="margin-top: 12px; font-size: 13px; color: var(--text-dim);">
+          Este proceso solo se hace la <strong>primera vez</strong> y puede tardar
+          <strong> dependiendo de tu conexión</strong>.
+        </p>
+        <button
+          class="btn btn-primary first-run-btn"
+          onClick={handleUpdate}
+          disabled={syncing}
+        >
+          {syncing ? '⏳ Sincronizando…' : '🔄 Actualizar ahora'}
+        </button>
+        {error && <p class="first-run-error">{error}</p>}
+        <p class="first-run-hint">La app comprueba novedades automáticamente cada 5 minutos.</p>
+      </div>
+    </div>
+  );
+}
+
+/** Componente: Modal de permiso de notificaciones (overlay sobre la app) */
+function NotificationPermissionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  if (!isOpen) return null;
+
+  const handleChoice = async (allow: boolean) => {
+    setNotificationPermissionAsked();
+    if (allow) {
+      await requestPermission();
+    } else {
+      try { localStorage.setItem('notifyNewUnits', 'false'); } catch {}
+    }
+    onClose();
+  };
+
+  return (
+    <div class="modal-overlay notif-permission-modal" onClick={onClose}>
+      <div class="modal notif-permission-content" onClick={(e) => e.stopPropagation()}>
+        <h3>🔔 Notificaciones de nuevos personajes</h3>
+        <p style="margin: 12px 0 8px; font-size: 15px; line-height: 1.5;">
+          ¿Deseas recibir un aviso cuando la app detecte un <strong>nuevo personaje</strong> en dokkaninfo.com?
+        </p>
+        <p style="margin: 0 0 20px; font-size: 13px; color: var(--text-dim);">
+          Podrás cambiarlo luego en <strong>Ajustes → Notificaciones</strong>.
+        </p>
+        <div style="display: flex; gap: 12px;">
+          <button
+            class="btn btn-secondary"
+            style="flex: 1;"
+            onClick={() => handleChoice(false)}
+          >
+            Ahora no
+          </button>
+          <button
+            class="btn btn-primary"
+            style="flex: 1;"
+            onClick={() => handleChoice(true)}
+          >
+            ✅ Activar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -50,8 +149,26 @@ function applySavedTheme(): void {
  *     (`controller/unitDetailController.ts`, `eventsController.ts`, …).
  */
 export default function App() {
+  const [showFirstRun, setShowFirstRun] = useState(() => {
+    try {
+      return localStorage.getItem(FIRST_RUN_KEY) !== 'true';
+    } catch {
+      return true; // si no hay localStorage, mostrar
+    }
+  });
+  const [showNotifModal, setShowNotifModal] = useState(false);
+
   // Aplicar tema al montar
   useEffect(applySavedTheme, []);
+
+  // Restaurar última sincronización persistida al arrancar
+  useEffect(() => {
+    readSyncMeta().then((meta) => {
+      if (meta.lastSuccessAt != null) {
+        syncState.value = { ...syncState.value, lastSuccessAt: meta.lastSuccessAt };
+      }
+    });
+  }, []);
 
   // Router por hash (#/ personajes, #/characters/{id}, #/banners, #/eventos…)
   useEffect(() => initRouter(), []);
@@ -86,6 +203,23 @@ export default function App() {
   const bannerDetail = bannerDetailId.value;
   const category = categoryId.value;
   const focus = eventsFocus.value;
+
+  // Si primera ejecución → pantalla onboarding
+  if (showFirstRun) {
+    return (
+      <FirstRunScreen
+        onComplete={() => {
+          setShowFirstRun(false);
+          // Tras completar primera sincronización, mostrar modal de notificaciones si procede
+          const notifEnabled = areNotificationsEnabled();
+          const notifAsked = localStorage.getItem('notificationPermissionAsked') === 'true';
+          if (notifEnabled && !notifAsked) {
+            setShowNotifModal(true);
+          }
+        }}
+      />
+    );
+  }
 
   // Helper para vistas que usan el listado de personajes con filtros
   const isListView = currentView === 'list' || currentView === 'cards' || currentView === 'categories' || currentView === 'links';
@@ -212,6 +346,11 @@ export default function App() {
           )}
         </>
       )}
+      {/* Modal de permiso de notificaciones (overlay sobre la app) */}
+      <NotificationPermissionModal
+        isOpen={showNotifModal}
+        onClose={() => setShowNotifModal(false)}
+      />
     </div>
   );
 }

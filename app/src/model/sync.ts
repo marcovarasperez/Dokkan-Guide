@@ -12,6 +12,7 @@ import {
 import { hashCardRow } from './hash';
 import { datePart } from './date';
 import { AUTO_REFRESH_MS, MAX_FETCHES_PER_RUN } from './constants';
+import { showNotification, areNotificationsEnabled, isNotificationVibrationEnabled } from './notifications';
 
 /**
  * Servicio de sincronización incremental — fuente única: dokkaninfo.com.
@@ -218,6 +219,26 @@ async function applyAndCacheResults(
   await writeSyncMeta({ lastAttemptAt: syncedAt, lastSuccessAt: syncedAt });
 
   for (const rec of normalized) cacheDetail(rec.summary.id, rec.hash, rec.detail);
+
+  // Notificar nuevos personajes (solo la primera vez que se detectan y si el usuario lo activó)
+  if (areNotificationsEnabled() && counts.newUnits > 0 && counts.freshUnitIds.length > 0) {
+    const { getUnit } = await import('./repository');
+    const names = counts.freshUnitIds
+      .map((id) => getUnit(id)?.name)
+      .filter((n): n is string => Boolean(n));
+
+    if (names.length > 0) {
+      const body = names.length === 1 ? names[0] : `${names.length} personajes nuevos: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;
+      await showNotification({
+        title: '¡Nuevo personaje en Dokkan!',
+        body,
+        id: Math.floor(syncedAt / 1000), // ID basado en timestamp
+        smallIcon: 'ic_stat_icon',
+        iconColor: '#FF6B35',
+        vibration: isNotificationVibrationEnabled(),
+      });
+    }
+  }
 
   syncState.value = {
     phase: 'updated',

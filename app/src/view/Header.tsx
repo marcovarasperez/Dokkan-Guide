@@ -2,14 +2,11 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { syncState, manualRefresh } from '../model/sync';
 import { formatDateTime } from '../model/format';
 import type { View } from '../controller/router';
-// Solo en APK nativo: detectar plataforma para comportamiento táctil
-import { Capacitor } from '@capacitor/core';
 
 /** Barra superior fija: marca, navegación (dropdowns) y nota legal. */
 export default function Header({ view }: { view: View }) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const navRef = useRef<HTMLNavElement>(null);
-  const isNative = Capacitor.isNativePlatform();
 
   const cls = (active: boolean): string => `app-header__link${active ? ' app-header__link--active' : ''}`;
   const cur = (active: boolean): 'page' | undefined => (active ? 'page' : undefined);
@@ -169,10 +166,9 @@ export default function Header({ view }: { view: View }) {
     setOpenDropdown(null);
   };
 
-  // Cerrar dropdowns al hacer click/tap fuera (SOLO EN APK NATIVO)
+  // Cerrar dropdowns al hacer click/tap fuera (FUNCIONA EN TODAS LAS PLATAFORMAS)
+  // En escritorio usa hover CSS, pero en móvil (touch) necesitamos JS
   useEffect(() => {
-    if (!isNative) return; // En web usamos hover CSS nativo
-
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (navRef.current && !navRef.current.contains(e.target as Node)) {
         closeDropdowns();
@@ -184,7 +180,7 @@ export default function Header({ view }: { view: View }) {
       document.removeEventListener('click', handleClickOutside, true);
       document.removeEventListener('touchstart', handleClickOutside, true);
     };
-  }, [isNative]);
+  }, []);
 
   // Cerrar dropdowns al navegar (cambio de vista)
   useEffect(() => {
@@ -240,21 +236,11 @@ export default function Header({ view }: { view: View }) {
               {tab.subItems.length > 0 ? (
                 // Tabs CON submenú: botón que abre dropdown
                 <button
-                  class={cls(tab.active)}
+                  class={`${cls(tab.active)} app-header__dropdown-trigger`}
                   aria-current={cur(tab.active)}
                   aria-haspopup="true"
                   aria-expanded={openDropdown === tab.id}
-                  onClick={(e) => {
-                    if (isNative) {
-                      toggleDropdown(tab.id, e);
-                    }
-                  }}
-                  {...(isNative && {
-                    onTouchStart: (e: React.TouchEvent) => {
-                      e.preventDefault();
-                      toggleDropdown(tab.id, e);
-                    }
-                  })}
+                  onClick={(e) => toggleDropdown(tab.id, e)}
                   style={{ background: 'transparent', border: 'none', padding: '6px 10px', font: 'inherit', color: 'inherit', cursor: 'pointer' }}
                 >
                   {tab.label}

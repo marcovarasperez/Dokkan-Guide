@@ -31,7 +31,7 @@ export const DB_NAME = 'dk-detail';
 const DB_VERSION = 3;
 
 export const STORE_DETAILS = 'details';
-const STORE_UNITS = 'units';
+export const STORE_UNITS = 'units';
 const STORE_UNITS_LIST = 'units_list'; // caché del listado /cards con TTL
 export const STORE_META = 'meta';
 const STORE_FRESH = 'fresh';

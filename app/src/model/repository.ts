@@ -2,8 +2,10 @@ import { signal } from '@preact/signals';
 import type { UnitSummary, SeedMeta } from './types';
 import type { UnitFull } from './detail';
 import { parseEpoch } from './date';
-import { dbGet, dbSet, STORE_META } from './localDb';
+import { dbGet, dbSet, STORE_UNITS, STORE_META } from './localDb';
 import { SYNC_META_KEY } from './constants';
+
+const UNITS_CACHE_KEY = 'synced-units'; // clave en store 'units'
 
 /**
  * Repositorio en memoria — datos en memoria, sin persistencia local.
@@ -52,13 +54,33 @@ export function loadRepository(): Promise<void> {
   return readyPromise;
 }
 
+interface CachedUnits {
+  summaries: [number, UnitSummary][];
+  hashes: [number, string][];
+  syncedAt: number;
+}
+
 async function loadInternal(): Promise<void> {
+  // 1) Cargar seed estático + meta del seed
   const [index, seedMeta] = await Promise.all([
     fetchJson<UnitSummary[]>('/data/units.index.json'),
     fetchJson<SeedMeta>('/data/meta.json'),
   ]);
 
-  // Convert ISO string dates to epoch seconds in the seed data
+  const seedDate = seedMeta.date ? parseEpoch(seedMeta.date) * 1000 : 0;
+
+  // 2) Intentar leer caché local (IndexedDB)
+  const cached = await dbGet<CachedUnits>(STORE_UNITS, UNITS_CACHE_KEY);
+  if (cached && cached.syncedAt > seedDate) {
+    // Caché más fresca que el seed → usarla
+    summaries = new Map(cached.summaries);
+    hashes = new Map(cached.hashes);
+    meta.lastSuccessAt = cached.syncedAt;
+    computeFreshSignal();
+    return;
+  }
+
+  // 3) Fallback: seed estático
   const convertDates = (u: UnitSummary): UnitSummary => ({
     ...u,
     characterId: u.characterId ?? null,
@@ -157,6 +179,14 @@ export async function applySyncResult(input: SyncApplyInput): Promise<SyncCounts
 
   computeFreshSignal();
   meta.lastSuccessAt = input.syncedAt;
+
+  // Persistir en IndexedDB para sobrevivir a reinicios
+  await dbSet<CachedUnits>(STORE_UNITS, UNITS_CACHE_KEY, {
+    summaries: Array.from(summaries.entries()),
+    hashes: Array.from(hashes.entries()),
+    syncedAt: input.syncedAt,
+  });
+
   return { newUnits, changedUnits, freshUnitIds };
 }
 

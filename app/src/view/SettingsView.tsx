@@ -3,6 +3,7 @@ import { manualRefresh, syncState } from '../model/sync';
 import { getUpdatedAt, getUnitsForList, loadRepository } from '../model/repository';
 import { formatDateTime } from '../model/date';
 import { clearCacheAndReload } from '../model/cache';
+import { requestPermission, hasPermission } from '../model/notifications';
 
 /** Temas disponibles */
 type Theme = 'dark' | 'light';
@@ -25,6 +26,15 @@ function getInitialAnimations(): boolean {
   return true;
 }
 
+/** Lee la preferencia de notificaciones de nuevos personajes */
+function getInitialNotifications(): boolean {
+  try {
+    const stored = localStorage.getItem('notifyNewUnits');
+    return stored !== 'false'; // true por defecto
+  } catch {}
+  return true;
+}
+
 /** Aplica el tema al documento y lo guarda */
 function applyTheme(theme: Theme): void {
   document.documentElement.setAttribute('data-theme', theme);
@@ -36,11 +46,17 @@ function saveAnimations(enabled: boolean): void {
   try { localStorage.setItem('animations', String(enabled)); } catch {}
 }
 
+/** Guarda la preferencia de notificaciones */
+function saveNotifications(enabled: boolean): void {
+  try { localStorage.setItem('notifyNewUnits', String(enabled)); } catch {}
+}
+
 export function SettingsView() {
   const lastSync = useSignal<string>('—');
   const unitCount = useSignal<number>(0);
   const theme = useSignal<Theme>(getInitialTheme());
   const animationsEnabled = useSignal<boolean>(getInitialAnimations());
+  const notificationsEnabled = useSignal<boolean>(getInitialNotifications());
   const showCacheModal = useSignal<boolean>(false);
 
   const handleRefresh = async () => {
@@ -55,8 +71,23 @@ export function SettingsView() {
   const handleAnimationsChange = (enabled: boolean) => {
     animationsEnabled.value = enabled;
     saveAnimations(enabled);
-    // Aplicar/quitar clase global para desactivar animaciones CSS
     document.documentElement.classList.toggle('no-animations', !enabled);
+  };
+
+  const handleNotificationsChange = async (enabled: boolean) => {
+    if (enabled) {
+      // Al activar, pedir permiso del sistema si no lo tenemos
+      const permitted = await hasPermission();
+      if (!permitted) {
+        const result = await requestPermission();
+        if (result !== 'granted') {
+          // Usuario denegó el permiso del sistema → no activar
+          return;
+        }
+      }
+    }
+    notificationsEnabled.value = enabled;
+    saveNotifications(enabled);
   };
 
   // Aplicar tema y animaciones al montar
@@ -110,7 +141,7 @@ export function SettingsView() {
         <button class="btn btn-primary" onClick={handleRefresh} disabled={syncState.value.phase === 'checking'}>
           {syncState.value.phase === 'checking' ? '⏳ Comprobando…' : '🔄 Forzar actualización ahora'}
         </button>
-        <p class="settings-hint">La app sincroniza automáticamente al abrir y cada 5 minutos.</p>
+        <p class="settings-hint">La app sincroniza automáticamente cada vez que la abres.</p>
       </section>
 
       {/* Apariencia */}
@@ -156,6 +187,31 @@ export function SettingsView() {
         </div>
       </section>
 
+      {/* Notificaciones */}
+      <section class="settings-section">
+        <h2>Notificaciones</h2>
+
+        <div class="settings-option">
+          <div class="settings-option__info">
+            <h3>Nuevos personajes</h3>
+            <p>Recibe un aviso cuando la sincronización detecte un personaje nuevo en dokkaninfo.com.</p>
+          </div>
+          <label class="setting-checkbox">
+            <input
+              type="checkbox"
+              checked={notificationsEnabled.value}
+              onChange={(e) => handleNotificationsChange((e.currentTarget as HTMLInputElement).checked)}
+            />
+            <span class="setting-checkbox__slider"></span>
+          </label>
+          <span class="setting-checkbox__label">
+            {notificationsEnabled.value ? 'Activadas' : 'Desactivadas'}
+          </span>
+        </div>
+
+        <p class="settings-hint">La app comprueba novedades cada 5 minutos mientras está abierta.</p>
+      </section>
+
       {/* Datos y caché */}
       <section class="settings-section">
         <h2>Datos y caché</h2>
@@ -170,8 +226,7 @@ export function SettingsView() {
         <h2>Información</h2>
         <div class="settings-info">
           <div class="info-row"><span>Versión</span><span>0.4.1</span></div>
-          <div class="info-row"><span>Fuente</span><span>DOKKANINFO (dokkaninfo.com)</span></div>
-          <div class="info-row"><span>Modo</span><span class="mode-online">🌐 Online + caché offline</span></div>
+          <div class="info-row"><span>Fuente</span><span>dokkaninfo.com</span></div>
         </div>
       </section>
 
@@ -193,7 +248,10 @@ export function SettingsView() {
               <button class="btn btn-secondary" onClick={() => { showCacheModal.value = false; }}>
                 Cancelar
               </button>
-              <button class="btn btn-danger" onClick={() => { clearCacheAndReload(); }}>
+              <button class="btn btn-danger" onClick={() => {
+                try { localStorage.removeItem('firstRunComplete'); } catch {}
+                clearCacheAndReload();
+              }}>
                 🗑️ Sí, limpiar y recargar
               </button>
             </div>

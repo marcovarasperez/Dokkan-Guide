@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import type { UnitClass, UnitRarity, UnitSummary, UnitType } from '../model/types';
 import { getUnitsForList, getUpdatedAt, loadRepository } from '../model/repository';
-import { startAutoRefresh, syncState } from '../model/sync';
+import { syncState } from '../model/sync';
 import { loadSeedIfEmpty } from '../model/news';
 import { loadCategoriesIndex } from '../model/wiki';
 import type { CategoriesIndex } from '../model/types';
@@ -86,7 +86,7 @@ const SORTERS: Record<SortKey, (a: UnitSummary, b: UnitSummary) => number> = {
 };
 
 export function useListController() {
-  // Carga local (instantánea) + semilla de noticias (sin auto-sync al abrir).
+  // Carga local (instantánea) + semilla de noticias.
   useEffect(() => {
     loadRepository()
       .then(() => {
@@ -102,9 +102,6 @@ export function useListController() {
     loadCategoriesIndex().then((idx) => {
       if (idx) categoriesIndex.value = idx;
     });
-    // Refresco automático en segundo plano (sin notificar al usuario salvo que falle).
-    const stopAutoRefresh = startAutoRefresh();
-    return () => stopAutoRefresh();
   }, []);
 
   // Tras una sincronización exitosa la lista se refresca YA: antes `units`
