@@ -17,6 +17,9 @@ interface Box {
 
 const DEFAULT_BOX: Box = { w: 0, h: 0, rowH: 218, idealW: 168, minW: 150 };
 
+/** Divisores de 30 (para filas completas con 30 items) */
+const DIVISORS_30 = [1, 2, 3, 5, 6, 10, 15, 30];
+
 /** Lee una medida CSS (var de :root) como número; fallback si no está disponible. */
 function cssVarPx(name: string, fallback: number): number {
   const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -28,8 +31,16 @@ function cssVarPx(name: string, fallback: number): number {
  * solo se montan las filas visibles + overscan, desplazadas con translateY.
  * Las medidas de celda viven en variables CSS para que la media query de
  * móvil (tarjetas compactas) y este cálculo hablen siempre el mismo idioma.
+ *
+ * @param units - Lista de unidades a mostrar
+ * @param targetRows - Si se proporciona (p.ej. 3 para la pestaña Recientes),
+ *   calcula las columnas para lograr exactamente ese número de filas
+ *   (o filas completas para el total de items en pantallas pequeñas).
  */
-export default function UnitGrid({ units }: { units: UnitSummary[] }) {
+export default function UnitGrid({
+  units,
+  targetRows,
+}: { units: UnitSummary[]; targetRows?: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<Box>(DEFAULT_BOX);
@@ -62,7 +73,28 @@ export default function UnitGrid({ units }: { units: UnitSummary[] }) {
   }, [units]);
 
   // Número de columnas según el ancho disponible y el modo (compacto o no)
-  const cols = box.w > 0 ? Math.max(1, Math.floor((box.w + GAP) / (box.idealW + GAP))) : 1;
+  // Si se especifica targetRows (p.ej. 3 para Recientes), calcular columnas para
+  // lograr exactamente esas filas (o filas completas para 30 items en pantallas pequeñas)
+  let cols: number;
+  if (targetRows && units.length > 0) {
+    // Columnas ideales para lograr targetRows filas
+    const targetCols = Math.ceil(units.length / targetRows);
+    // Máximo de columnas que caben en pantalla con ancho ideal
+    const maxCols = box.w > 0 ? Math.max(1, Math.floor((box.w + GAP) / (box.idealW + GAP))) : 1;
+
+    if (maxCols >= targetCols) {
+      // Pantalla grande: usar exactamente targetCols para lograr targetRows filas
+      cols = targetCols;
+    } else {
+      // Pantalla pequeña: buscar el mayor divisor de 30 que quepa (filas completas)
+      // Si no hay divisores que quepan, usar maxCols
+      const divisors = DIVISORS_30.filter((d) => d <= maxCols);
+      cols = divisors.length > 0 ? divisors[divisors.length - 1] : maxCols;
+    }
+  } else {
+    // Comportamiento original para otras vistas
+    cols = box.w > 0 ? Math.max(1, Math.floor((box.w + GAP) / (box.idealW + GAP))) : 1;
+  }
   const cardW = Math.max(box.minW, Math.floor((box.w - GAP * (cols - 1)) / cols));
   const rows = Math.ceil(units.length / cols);
   const stride = box.rowH + GAP; // paso de fila real (celda + hueco)

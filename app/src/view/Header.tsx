@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { syncState, manualRefresh } from '../model/sync';
-import { formatDateTime } from '../model/format';
-import type { View } from '../controller/router';
-
+import { formatDateTime } from '../model/date';
+import { EVENT_VIEWS, ITEM_VIEWS, type View } from '../controller/router';
 /** Barra superior fija: marca, navegación (dropdowns) y nota legal. */
 export default function Header({ view }: { view: View }) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -63,12 +62,7 @@ export default function Header({ view }: { view: View }) {
       id: 'events',
       label: 'Events',
       href: '#/eventos',
-      active: isActive([
-        'events', 'eventsBurst', 'eventsBonus', 'eventsDbStories',
-        'eventsExtremeZBattle', 'eventsGrowth', 'eventsLimited',
-        'eventsPettanBattle', 'eventsQuest', 'eventsStory',
-        'eventsDokkanFrontier', 'eventsUltimateClash', 'eventsWorldTournament'
-      ]),
+      active: isActive(EVENT_VIEWS),
       subItems: [
         { label: 'Burst Mode', href: '#/eventos/burst' },
         { label: 'Bonus', href: '#/eventos/bonus' },
@@ -88,13 +82,7 @@ export default function Header({ view }: { view: View }) {
       id: 'items',
       label: 'Items',
       href: '#/items',
-      active: isActive([
-        'items', 'itemsMeat', 'itemsAwakeningMedals', 'itemsEquipment',
-        'itemsKeys', 'itemsPotentialItems', 'itemsSpecialItems',
-        'itemsStickers', 'itemsSupportItems', 'itemsSupportMemories',
-        'itemsTrainingFields', 'itemsTrainingItems', 'itemsTreasureItems',
-        'itemsWallpapers'
-      ]),
+      active: isActive(ITEM_VIEWS),
       subItems: [
         { label: 'Meat', href: '#/items/carne' },
         { label: 'Awakening Medals', href: '#/items/medallas-despertar' },

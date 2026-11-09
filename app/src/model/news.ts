@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 import { fetchInfoText } from './http';
 import { extractNewsBody, parseNewsList } from './dinfo';
-import { parseEpoch } from './date';
+import { parseEpoch, freshnessText } from './date';
 
 /**
  * Noticias — fuente: dokkaninfo.com (Fase 9).
@@ -173,8 +173,5 @@ export function newsStatusText(): string {
   if (s.failed) return 'Sin conexión';
   const at = s.cache?.updatedAt;
   if (!at) return 'Datos empaquetados';
-  const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
-  if (mins < 1) return 'Al día';
-  if (mins < 60) return `Al día · hace ${mins} min`;
-  return `Al día · hace ${Math.round(mins / 60)} h`;
+  return freshnessText(at);
 }

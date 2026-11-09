@@ -11,7 +11,7 @@ import {
 } from './repository';
 import { hashCardRow } from './hash';
 import { datePart } from './date';
-import { AUTO_REFRESH_MS, MAX_FETCHES_PER_RUN } from './constants';
+import { MAX_FETCHES_PER_RUN } from './constants';
 import { showNotification, areNotificationsEnabled, isNotificationVibrationEnabled } from './notifications';
 
 /**
@@ -335,11 +335,4 @@ export async function manualRefresh(): Promise<void> {
   } finally {
     refreshInFlight = false;
   }
-}
-
-export function startAutoRefresh(): () => void {
-  const timer = window.setInterval(() => {
-    void manualRefresh();
-  }, AUTO_REFRESH_MS);
-  return () => window.clearInterval(timer);
 }

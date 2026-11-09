@@ -1,16 +1,11 @@
 import { useState } from 'preact/hooks';
 import { SKILL_LABEL, SKILL_ICON, SKILL_ICON_ON } from '../model/hp';
 import { thumbUrl, fullArtUrl } from '../model/adapter';
-import { formatDate, formatNumber } from '../model/format';
+import { formatDate, formatNumber } from '../model/date';
 import { useUnitDetail, isFuture, normalizeSaStyle, LEADER_MIN_PCT } from '../controller/unitDetailController';
 import SkillRich, { richInline, withChancePct } from './SkillRich';
 import MiniUnitCard from './MiniUnit';
-import InfoImg from './InfoImg';
-
-/** Imagen rota (sin red / borrada): se oculta en vez de mostrar el icono. */
-const hideBroken = (e: { currentTarget: HTMLImageElement }): void => {
-  e.currentTarget.classList.add('img-broken');
-};
+import InfoImg, { hideBroken } from './InfoImg';
 
 /** Etiqueta de estado para textos de aviso. */
 const stateLabel = (k: 'base' | 'eza' | 'seza'): string =>

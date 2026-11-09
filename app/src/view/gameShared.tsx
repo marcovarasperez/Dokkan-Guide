@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { GameEvent, EventDetailState, MissionGroup } from '../model/game';
 import { eventDetails, loadEventDetail } from '../model/game';
 import type { DkEventStageDrop } from '../model/dinfo';
-import { formatDate, formatNumber } from '../model/format';
+import { formatDate, formatNumber } from '../model/date';
 import InfoImg, { hideBroken } from './InfoImg';
 import { thumbUrl } from '../model/adapter';
 

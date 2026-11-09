@@ -56,7 +56,7 @@ export default function RecentView() {
         {recentUnits.length === 0 ? (
           <p class="empty-state">No hay datos de personajes recientes.</p>
         ) : (
-          <UnitGrid units={recentUnits} />
+          <UnitGrid units={recentUnits} targetRows={3} />
         )}
         <p class="detail-legal">Datos: DOKKANINFO · Proyecto fan no comercial</p>
       </div>

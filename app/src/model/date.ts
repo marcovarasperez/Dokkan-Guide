@@ -1,5 +1,5 @@
 /**
- * Utilidades de fechas centralizadas — elimina duplicados en dinfo.ts, format.ts, news.ts, bannerArchive.ts.
+ * Utilidades de fechas centralizadas — elimina duplicados en dinfo.ts, news.ts, bannerArchive.ts.
  */
 
 /** Sentinelas de "sin fecha" (>= 2038-01-19) que usa dokkaninfo. */
@@ -66,6 +66,18 @@ export function datePart(value: string | number | null | undefined): string {
 /** Formatea número con separadores de miles (es-ES). */
 export function formatNumber(n: number): string {
   return n.toLocaleString('es-ES');
+}
+
+/**
+ * Chip de frescura: 'Al día' · 'Al día · hace N min' · 'Al día · hace N h'
+ * a partir de un epoch seconds (null → cadena vacía).
+ */
+export function freshnessText(at: number | null | undefined): string {
+  if (!at) return '';
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
+  if (mins < 1) return 'Al día';
+  if (mins < 60) return `Al día · hace ${mins} min`;
+  return `Al día · hace ${Math.round(mins / 60)} h`;
 }
 
 /** Convierte epoch seconds a ISO string (UTC). */

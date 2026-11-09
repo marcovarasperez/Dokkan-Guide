@@ -1,17 +1,13 @@
-import type { TargetedEvent } from 'preact';
 import type { UnitSummary } from '../model/types';
 import { freshIds } from '../model/repository';
 import { frameUrl, thumbUrl, typeIconUrl, rarityIconUrl } from '../model/adapter';
+import { hideBroken } from './InfoImg';
 
 /**
  * Nota: no se usa `<picture>` con variante `.avif` — la fuente solo publica
  * `.png` (el `.avif` devolvía 404 y la tarjeta se quedaba sin arte). Cloudflare
  * de dokkaninfo ya negocia WebP solo por la cabecera `Accept`.
  */
-/** Imagen rota → oculta; el marco de color de la celda hace de fallback. */
-const hideBroken = (e: TargetedEvent<HTMLImageElement, Event>): void => {
-  e.currentTarget.classList.add('img-broken');
-};
 
 /** Forma mínima que necesita la celda (el UnitSummary del índice la cumple). */
 export type UnitCardData = Pick<

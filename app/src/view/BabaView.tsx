@@ -1,9 +1,9 @@
 import type { BabaItem, BabaChest, BabaShopKey } from '../model/game';
 import { getUnit } from '../model/repository';
 import { thumbUrl } from '../model/adapter';
-import { formatDate, formatNumber } from '../model/format';
+import { formatDate, formatNumber } from '../model/date';
 import { useBabaController } from '../controller/babaController';
-import InfoImg from './InfoImg';
+import InfoImg, { hideBroken } from './InfoImg';
 import { LoadMore, StatusBlock } from './gameShared';
 
 /**
@@ -24,10 +24,6 @@ const BABA_TABS: { key: BabaShopKey; label: string }[] = [
 ];
 
 const n = (v: number): string => formatNumber(v);
-
-const hideBroken = (e: { currentTarget: HTMLImageElement }): void => {
-  e.currentTarget.classList.add('img-broken');
-};
 
 /** Tarjeta de objeto de la tienda (compartida entre secciones y detalle de joya). */
 function BabaItemCard({ it, unit }: { it: BabaItem; unit: string }) {

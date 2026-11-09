@@ -3,19 +3,8 @@ import { manualRefresh, syncState } from '../model/sync';
 import { getUpdatedAt, getUnitsForList, loadRepository } from '../model/repository';
 import { formatDateTime } from '../model/date';
 import { clearCacheAndReload } from '../model/cache';
-import { requestPermission, hasPermission } from '../model/notifications';
-
-/** Temas disponibles */
-type Theme = 'dark' | 'light';
-
-/** Lee el tema guardado o usa 'dark' por defecto */
-function getInitialTheme(): Theme {
-  try {
-    const stored = localStorage.getItem('theme') as Theme | null;
-    if (stored === 'dark' || stored === 'light') return stored;
-  } catch {}
-  return 'dark';
-}
+import { requestPermission, hasPermission, areNotificationsEnabled } from '../model/notifications';
+import { applyTheme, getSavedTheme, saveTheme, type Theme } from '../model/theme';
 
 /** Lee la preferencia de animaciones */
 function getInitialAnimations(): boolean {
@@ -24,21 +13,6 @@ function getInitialAnimations(): boolean {
     return stored !== 'false'; // true por defecto
   } catch {}
   return true;
-}
-
-/** Lee la preferencia de notificaciones de nuevos personajes */
-function getInitialNotifications(): boolean {
-  try {
-    const stored = localStorage.getItem('notifyNewUnits');
-    return stored !== 'false'; // true por defecto
-  } catch {}
-  return true;
-}
-
-/** Aplica el tema al documento y lo guarda */
-function applyTheme(theme: Theme): void {
-  document.documentElement.setAttribute('data-theme', theme);
-  try { localStorage.setItem('theme', theme); } catch {}
 }
 
 /** Guarda la preferencia de animaciones */
@@ -54,9 +28,9 @@ function saveNotifications(enabled: boolean): void {
 export function SettingsView() {
   const lastSync = useSignal<string>('—');
   const unitCount = useSignal<number>(0);
-  const theme = useSignal<Theme>(getInitialTheme());
+  const theme = useSignal<Theme>(getSavedTheme());
   const animationsEnabled = useSignal<boolean>(getInitialAnimations());
-  const notificationsEnabled = useSignal<boolean>(getInitialNotifications());
+  const notificationsEnabled = useSignal<boolean>(areNotificationsEnabled());
   const showCacheModal = useSignal<boolean>(false);
 
   const handleRefresh = async () => {
@@ -65,7 +39,7 @@ export function SettingsView() {
 
   const handleThemeChange = (newTheme: Theme) => {
     theme.value = newTheme;
-    applyTheme(newTheme);
+    saveTheme(newTheme);
   };
 
   const handleAnimationsChange = (enabled: boolean) => {

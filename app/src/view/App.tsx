@@ -4,7 +4,9 @@ import {
   categoryId,
   detailId,
   eventsFocus,
+  EVENT_VIEWS,
   initRouter,
+  ITEM_VIEWS,
   newsDetailId,
   view,
 } from '../controller/router';
@@ -28,22 +30,12 @@ import MissionsView from './MissionsView';
 import ToolsView from './ToolsView';
 import InfoView from './InfoView';
 import { manualRefresh, syncState } from '../model/sync';
-import { requestPermission, setNotificationPermissionAsked, areNotificationsEnabled } from '../model/notifications';
+import { requestPermission, setNotificationPermissionAsked, areNotificationsEnabled, hasAskedNotificationPermission } from '../model/notifications';
 import { readSyncMeta } from '../model/repository';
+import { applyTheme, getSavedTheme } from '../model/theme';
 
 /** Clave localStorage para marcar primera ejecución completada */
 const FIRST_RUN_KEY = 'firstRunComplete';
-
-/** Aplica el tema guardado (dark por defecto) al arrancar */
-function applySavedTheme(): void {
-  try {
-    const stored = localStorage.getItem('theme') as 'dark' | 'light' | null;
-    const theme = (stored === 'dark' || stored === 'light') ? stored : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-  } catch {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }
-}
 
 /** Componente: Pantalla de primera ejecución (solo sincronización inicial) */
 function FirstRunScreen({ onComplete }: { onComplete: () => void }) {
@@ -159,7 +151,7 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
 
   // Aplicar tema al montar
-  useEffect(applySavedTheme, []);
+  useEffect(() => applyTheme(getSavedTheme()), []);
 
   // Restaurar última sincronización persistida al arrancar
   useEffect(() => {
@@ -212,8 +204,7 @@ export default function App() {
           setShowFirstRun(false);
           // Tras completar primera sincronización, mostrar modal de notificaciones si procede
           const notifEnabled = areNotificationsEnabled();
-          const notifAsked = localStorage.getItem('notificationPermissionAsked') === 'true';
-          if (notifEnabled && !notifAsked) {
+          if (notifEnabled && !hasAskedNotificationPermission()) {
             setShowNotifModal(true);
           }
         }}
@@ -226,19 +217,8 @@ export default function App() {
   const isDetailView = currentView === 'detail';
   const isNewsView = currentView === 'news' || currentView === 'newsDetail';
   const isBannersView = currentView === 'banners' || currentView === 'bannerDetail' || currentView === 'bannerAnimations';
-  const isEventsView = [
-    'events', 'eventsBurst', 'eventsBonus', 'eventsDbStories',
-    'eventsExtremeZBattle', 'eventsGrowth', 'eventsLimited',
-    'eventsPettanBattle', 'eventsQuest', 'eventsStory',
-    'eventsDokkanFrontier', 'eventsUltimateClash', 'eventsWorldTournament'
-  ].includes(currentView);
-  const isItemsView = [
-    'items', 'itemsMeat', 'itemsAwakeningMedals', 'itemsEquipment',
-    'itemsKeys', 'itemsPotentialItems', 'itemsSpecialItems',
-    'itemsStickers', 'itemsSupportItems', 'itemsSupportMemories',
-    'itemsTrainingFields', 'itemsTrainingItems', 'itemsTreasureItems',
-    'itemsWallpapers'
-  ].includes(currentView);
+  const isEventsView = EVENT_VIEWS.includes(currentView);
+  const isItemsView = ITEM_VIEWS.includes(currentView);
   const isMissionsView = currentView === 'missions' || currentView === 'panelMissions';
   const isToolsView = currentView === 'tools' || currentView === 'toolsLinkTool' || currentView === 'toolsLeaderSkill';
 

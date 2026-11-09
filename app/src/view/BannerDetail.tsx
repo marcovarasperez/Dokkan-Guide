@@ -1,7 +1,7 @@
 import type { ComponentChild } from 'preact';
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import type { BannerCardRef } from '../model/bannerArchive';
-import { formatDate } from '../model/format';
+import { formatDate } from '../model/date';
 import { useBannerDetailController } from '../controller/bannerDetailController';
 import InfoImg from './InfoImg';
 import UnitCard from './UnitCard';

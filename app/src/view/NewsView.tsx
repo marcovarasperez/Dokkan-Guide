@@ -1,5 +1,5 @@
 import { newsStatusText } from '../model/news';
-import { formatDate, epochToISO } from '../model/format';
+import { formatDate, epochToISO } from '../model/date';
 import { useNewsController } from '../controller/newsController';
 import InfoImg from './InfoImg';
 

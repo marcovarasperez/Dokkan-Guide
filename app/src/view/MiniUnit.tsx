@@ -1,9 +1,6 @@
 import type { MiniUnit } from '../model/detail';
 import { thumbUrl, TYPE_COLORS } from '../model/adapter';
-
-const hideBroken = (e: { currentTarget: HTMLImageElement }): void => {
-  e.currentTarget.classList.add('img-broken');
-};
+import { hideBroken } from './InfoImg';
 
 /**
  * Tarjeta miniatura de unidad para listas de apoyo: líderes 170%+,

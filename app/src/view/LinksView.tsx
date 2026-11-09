@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'preact/hooks';
 import { useListController } from '../controller/listController';
 import UnitGrid from './UnitGrid';
 import FilterBar from './FilterBar';
@@ -9,7 +8,6 @@ import FilterBar from './FilterBar';
  */
 export default function LinksView() {
   const {
-    units,
     list,
     count,
     query,

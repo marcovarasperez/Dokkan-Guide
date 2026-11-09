@@ -1,4 +1,4 @@
-import { formatDate, epochToISO } from '../model/format';
+import { formatDate, epochToISO } from '../model/date';
 import { useNewsDetailController } from '../controller/newsDetailController';
 
 /**

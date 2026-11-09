@@ -1,11 +1,8 @@
 import type { UnitSummary } from '../model/types';
-import { formatNumber } from '../model/format';
+import { formatNumber } from '../model/date';
 import { useCategoryController } from '../controller/categoryController';
 import MiniUnitCard from './MiniUnit';
-
-const hideBroken = (e: { currentTarget: HTMLImageElement }): void => {
-  e.currentTarget.classList.add('img-broken');
-};
+import { hideBroken } from './InfoImg';
 
 /** Imagen oficial de la etiqueta de categoría (assets de dokkaninfo). */
 const labelUrl = (id: number): string =>

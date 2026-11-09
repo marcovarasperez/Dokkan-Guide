@@ -1,4 +1,11 @@
 import { view } from '../controller/router';
+import SubTabs, { type SubTab } from './SubTabs';
+
+const TOOL_TABS: SubTab[] = [
+  { id: 'tools', label: 'Tools', href: '#/herramientas' },
+  { id: 'toolsLinkTool', label: 'Link Tool', href: '#/herramientas/link-tool' },
+  { id: 'toolsLeaderSkill', label: '200% + Leader Skill', href: '#/herramientas/leader-skill' },
+];
 
 /**
  * Vista "Tools": contenedor para Link Tool y 200% + Leader Skill.
@@ -6,33 +13,10 @@ import { view } from '../controller/router';
 export default function ToolsView() {
   const currentView = view.value;
 
-  const toolTabs = [
-    { id: 'tools', label: 'Tools', href: '#/herramientas' },
-    { id: 'toolsLinkTool', label: 'Link Tool', href: '#/herramientas/link-tool' },
-    { id: 'toolsLeaderSkill', label: '200% + Leader Skill', href: '#/herramientas/leader-skill' },
-  ];
-
-  const activeTab = toolTabs.find(t => t.id === currentView) || toolTabs[0];
-
   return (
     <div class="feed-scroll">
       <div class="feed feed--banners">
-        <nav class="items-tabs" aria-label="Herramientas">
-          {toolTabs.map((tab) => (
-            <a
-              key={tab.id}
-              class={`items-tab${tab.id === currentView ? ' items-tab--active' : ''}`}
-              href={tab.href}
-              aria-current={tab.id === currentView ? 'page' : undefined}
-            >
-              {tab.label}
-            </a>
-          ))}
-        </nav>
-
-        <div class="feed__head">
-          <h2>Tools · {activeTab.label}</h2>
-        </div>
+        <SubTabs tabs={TOOL_TABS} currentView={currentView} navLabel="Herramientas" title="Tools" />
 
         {currentView === 'toolsLinkTool' && (
           <div class="tool-link-tool">

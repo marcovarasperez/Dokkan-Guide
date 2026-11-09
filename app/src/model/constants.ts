@@ -12,9 +12,6 @@ export const INFO_CDN = 'https://dokkaninfo.com';
 /** Ruta de assets global/en de dokkaninfo (datos, arte e iconos) */
 export const INFO_ASSET = `${INFO_CDN}/assets/global/en`;
 
-/** Intervalo de auto-refresco (5 minutos) */
-export const AUTO_REFRESH_MS = 5 * 60 * 1000;
-
 /** Máximo de fichas descargadas por corrida de sync (típico: 0-5 cambios/día) */
 export const MAX_FETCHES_PER_RUN = 15;
 

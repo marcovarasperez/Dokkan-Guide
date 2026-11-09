@@ -1,5 +1,5 @@
 import type { ArchiveBanner } from '../model/bannerArchive';
-import { formatDate } from '../model/format';
+import { formatDate, freshnessText } from '../model/date';
 import { useBannersController } from '../controller/bannersController';
 import { useState } from 'preact/hooks';
 import InfoImg from './InfoImg';
@@ -52,15 +52,6 @@ function BannerCard({ b }: { b: ArchiveBanner }) {
   );
 }
 
-/** Chip de frescura del listado. */
-function updatedAtText(at: number | null): string {
-  if (!at) return '';
-  const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
-  if (mins < 1) return 'Al día';
-  if (mins < 60) return `Al día · hace ${mins} min`;
-  return `Al día · hace ${Math.round(mins / 60)} h`;
-}
-
 /** Aplana grupos limitando a 3 items por grupo, retorna items + flag de si hay más */
 function flattenGroupsLimited(groups: Array<{ key: string; label: string; items: ArchiveBanner[] }>, expandedKeys: Set<string>) {
   const result: Array<{ type: 'header'; label: string; key: string } | { type: 'banner'; banner: ArchiveBanner } | { type: 'showmore'; groupKey: string; label: string; remaining: number }> = [];
@@ -95,7 +86,7 @@ export default function BannersView() {
       <div class="feed feed--banners">
         <div class="feed__head">
           <h2>Banners</h2>
-          <span class="feed__status">{tab === 'active' ? updatedAtText(arch.updatedAt) : ''}</span>
+          <span class="feed__status">{tab === 'active' ? freshnessText(arch.updatedAt) : ''}</span>
           <button type="button" class="game-refresh" onClick={refresh} title="Actualizar esta sección">
             ⟳ Actualizar
           </button>

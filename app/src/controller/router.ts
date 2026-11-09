@@ -104,6 +104,26 @@ export type View =
   | 'info'
   | 'settings';
 
+/**
+ * Vistas de la sección Events (lista compartida por `App` y `Header` para
+ * decidir qué vista pintar y qué pestaña del menú marcar como activa).
+ */
+export const EVENT_VIEWS: View[] = [
+  'events', 'eventsBurst', 'eventsBonus', 'eventsDbStories',
+  'eventsExtremeZBattle', 'eventsGrowth', 'eventsLimited',
+  'eventsPettanBattle', 'eventsQuest', 'eventsStory',
+  'eventsDokkanFrontier', 'eventsUltimateClash', 'eventsWorldTournament',
+];
+
+/** Vistas de la sección Items (mismo uso que `EVENT_VIEWS`). */
+export const ITEM_VIEWS: View[] = [
+  'items', 'itemsMeat', 'itemsAwakeningMedals', 'itemsEquipment',
+  'itemsKeys', 'itemsPotentialItems', 'itemsSpecialItems',
+  'itemsStickers', 'itemsSupportItems', 'itemsSupportMemories',
+  'itemsTrainingFields', 'itemsTrainingItems', 'itemsTreasureItems',
+  'itemsWallpapers',
+];
+
 /** Vista activa derivada de la ruta (el orden importa: lo más específico gana). */
 export const view = computed<View>(() => {
   if (route.value.startsWith('#/noticias')) {

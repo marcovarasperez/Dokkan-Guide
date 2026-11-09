@@ -2787,13 +2787,24 @@ a {
   align-self: flex-start;
 }
 
-.news-card__media img {
+.news-card__media img,
+.news-card__media .news-card__img {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
+}
+
+/* Placeholder mientras carga la imagen vía transporte nativo (InfoImg) */
+.news-card__img--pending {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0.5;
 }
 
 .news-card__body {
