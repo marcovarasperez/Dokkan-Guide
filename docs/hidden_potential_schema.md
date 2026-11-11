@@ -6,14 +6,14 @@ Guías curated de Hidden Potential por unidad (formato minimalista: distribució
 2. **algorithm** — cálculo local a partir del texto de la pasiva de la fuente (reglas del método).
 3. **estimated** — estimación por rol (ofensivo: Adicional → Crítico → Evasión; defensivo: Evasión → Adicional → Crítico), siempre etiquetada "Estimated".
 
-En la app la recomendación se muestra como: **Adicional X · Crítico Y · Evasión Z** (reparto estándar 15 + 11 + 0 nodos).
+En la app la recomendación se muestra como: **Adicional X · Crítico Y · Evasión Z** (reparto 15 + 6 + 0 nodos más +5 de afinidad de tipo; los niveles de la guía son TOTALES).
 
 ## Entrada
 
 ```json
 {
   "unitId": 1034761,                  // obligatorio; id de carta (debe existir en units.index.json)
-  "variant": "eza",                   // opcional: "base" | "eza" (defecto "base"; "eza" cubre EZA y SEZA)
+  "variant": "eza",                   // opcional: "base" | "eza" | "seza" (defecto "base"); sin guía para un estado se usa la del anterior (SEZA → EZA → Normal)
   "levels": {                         // obligatorio: niveles enteros 0-15
     "additional": 0,                  //   Combo Attack / ataque adicional (icono pot_skill_01)
     "critical": 15,                   //   Critical Hit (icono pot_skill_02)

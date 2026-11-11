@@ -96,7 +96,7 @@ function stateChangeDiffers(s: UnitSummary, r: DkCardRow): boolean {
  * Nuevas unidades SSR+ no especulares (espejos 9xxxxxx se excluyen).
  * Se excluyen variantes sin página propia (icon_id apunta a otra fila),
  * formas pre-despertar (awoken_max < 1), estados transformados (id >= 4000000)
- * y filas sin fecha de estreno publicada — misma regla que el widget
+ * y filas sin fecha de estreno publicada (las de fecha futura SÍ entran) — como el widget
  * "Most Recent Cards" de dokkaninfo.com y que tools/sync.mjs.
  */
 const isNewCandidate = (r: DkCardRow, known: Set<number>, catalogIds: Set<number>): boolean => {
@@ -110,8 +110,11 @@ const isNewCandidate = (r: DkCardRow, known: Set<number>, catalogIds: Set<number
     r.id < 4000000 &&
     (r.awoken_max ?? 0) >= 1 &&
     !String(r.id).startsWith('9') &&
+    // Con fecha publicada, aunque sea FUTURA: dokkaninfo ya lista en "Most Recent
+    // Cards" las cartas anunciadas (salen en días). Solo se descarta el centinela
+    // "sin fecha" (≥ 2038) que usa la fuente.
     open > 0 &&
-    open < Date.now() / 1000
+    open < 2_145_000_000
   );
 }
 
@@ -143,7 +146,9 @@ function categorizeCatalogRows(rows: DkCardRow[]): CatalogDiff {
 }
 
 function buildFetchQueue(diff: CatalogDiff): DkCardRow[] {
-  return [...diff.stateChanged, ...diff.changed, ...diff.added].slice(0, MAX_FETCHES_PER_RUN);
+  // Las NUEVAS primero: con el cupo por corrida, una tanda de cartas cambiadas
+  // (seed antiguo) dejaba fuera las recién anunciadas una actualización tras otra.
+  return [...diff.added, ...diff.stateChanged, ...diff.changed].slice(0, MAX_FETCHES_PER_RUN);
 }
 
 // Concurrencia máxima de peticiones de detalle paralelas

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { syncState, manualRefresh } from '../model/sync';
 import { formatDateTime } from '../model/date';
-import { EVENT_VIEWS, ITEM_VIEWS, type View } from '../controller/router';
+import type { View } from '../controller/router';
+import { NAV_TABS } from '../controller/navigation';
 /** Barra superior fija: marca, navegación (dropdowns) y nota legal. */
 export default function Header({ view }: { view: View }) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const navRef = useRef<HTMLNavElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   const cls = (active: boolean): string => `app-header__link${active ? ' app-header__link--active' : ''}`;
   const cur = (active: boolean): 'page' | undefined => (active ? 'page' : undefined);
@@ -19,130 +20,10 @@ export default function Header({ view }: { view: View }) {
     await manualRefresh();
   };
 
-  const isActive = (views: View[]): boolean => views.includes(view);
+  // Pestañas y sub-pestañas: árbol único en controller/navigation.ts (espejo del menú de dokkaninfo).
+  const tabs = NAV_TABS.map((t) => ({ ...t, active: t.active() }));
 
-  // Definición de las pestañas con sus sub-opciones
-  const tabs = [
-    {
-      id: 'recent',
-      label: 'Recientes',
-      href: '#/recientes',
-      active: view === 'recent',
-      subItems: [],
-    },
-    {
-      id: 'news',
-      label: 'News',
-      href: '#/noticias',
-      active: isActive(['news', 'newsDetail']),
-      subItems: [],
-    },
-    {
-      id: 'banners',
-      label: 'Banners',
-      href: '#/banners',
-      active: isActive(['banners', 'bannerDetail', 'bannerAnimations']),
-      subItems: [
-        { label: 'Banners', href: '#/banners' },
-        { label: 'Banner Animations', href: '#/banners/animaciones' },
-      ],
-    },
-    {
-      id: 'cards',
-      label: 'Cards',
-      href: '#/cartas',
-      active: isActive(['cards', 'categories', 'links', 'detail']),
-      subItems: [
-        { label: 'Cards', href: '#/cartas' },
-        { label: 'Categories', href: '#/cartas/categorias' },
-        { label: 'Links', href: '#/cartas/links' },
-      ],
-    },
-    {
-      id: 'events',
-      label: 'Events',
-      href: '#/eventos',
-      active: isActive(EVENT_VIEWS),
-      subItems: [
-        { label: 'Burst Mode', href: '#/eventos/burst' },
-        { label: 'Bonus', href: '#/eventos/bonus' },
-        { label: 'DB Stories', href: '#/eventos/dbstories' },
-        { label: 'Extreme Z Battle', href: '#/eventos/extreme-z-battle' },
-        { label: 'Growth', href: '#/eventos/growth' },
-        { label: 'Limited', href: '#/eventos/limited' },
-        { label: 'Pettan Battle', href: '#/eventos/pettan-battle' },
-        { label: 'Quest', href: '#/eventos/quest' },
-        { label: 'Story', href: '#/eventos/story' },
-        { label: 'Dokkan Frontier', href: '#/eventos/dokkan-frontier' },
-        { label: 'Ultimate Clash', href: '#/eventos/ultimate-clash' },
-        { label: 'World Tournament', href: '#/eventos/world-tournament' },
-      ],
-    },
-    {
-      id: 'items',
-      label: 'Items',
-      href: '#/items',
-      active: isActive(ITEM_VIEWS),
-      subItems: [
-        { label: 'Meat', href: '#/items/carne' },
-        { label: 'Awakening Medals', href: '#/items/medallas-despertar' },
-        { label: 'Equipment', href: '#/items/equipamiento' },
-        { label: 'Keys', href: '#/items/llaves' },
-        { label: 'Potential Items', href: '#/items/objetos-potencial' },
-        { label: 'Special Items', href: '#/items/objetos-especiales' },
-        { label: 'Stickers', href: '#/items/stickers' },
-        { label: 'Support Items', href: '#/items/objetos-apoyo' },
-        { label: 'Support Memories', href: '#/items/memorias-apoyo' },
-        { label: 'Training Fields', href: '#/items/campos-entrenamiento' },
-        { label: 'Training Items', href: '#/items/objetos-entrenamiento' },
-        { label: 'Treasure Items', href: '#/items/objetos-tesoro' },
-        { label: 'Wallpapers', href: '#/items/wallpapers' },
-      ],
-    },
-    {
-      id: 'missions',
-      label: 'Missions',
-      href: '#/misiones',
-      active: isActive(['missions', 'panelMissions']),
-      subItems: [
-        { label: 'Missions', href: '#/misiones' },
-        { label: 'Panel Missions', href: '#/misiones/panel' },
-      ],
-    },
-    {
-      id: 'baba',
-      label: 'Baba',
-      href: '#/baba',
-      active: view === 'baba',
-      subItems: [],
-    },
-    {
-      id: 'tools',
-      label: 'Tools',
-      href: '#/herramientas',
-      active: isActive(['tools', 'toolsLinkTool', 'toolsLeaderSkill']),
-      subItems: [
-        { label: 'Link Tool', href: '#/herramientas/link-tool' },
-        { label: '200% + Leader Skill', href: '#/herramientas/leader-skill' },
-      ],
-    },
-    {
-      id: 'info',
-      label: 'Info',
-      href: '#/info',
-      active: view === 'info',
-      subItems: [],
-    },
-    {
-      id: 'settings',
-      label: 'Ajustes',
-      href: '#/ajustes',
-      active: view === 'settings',
-      subItems: [],
-    },
-  ];
-
-  const toggleDropdown = (id: string, e?: React.MouseEvent | React.TouchEvent) => {
+  const toggleDropdown = (id: string, e?: Event) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -187,7 +68,7 @@ export default function Header({ view }: { view: View }) {
         <div class="app-header__center">
           {isError && sync.message && (
             <span class="app-header__sync-error" title="Error en la última actualización">
-              ⚠ {sync.message} {lastOk !== null ? `· {formatDateTime(lastOk / 1000)}` : ''}
+              ⚠ {sync.message} {lastOk !== null ? `· ${formatDateTime(lastOk / 1000)}` : ''}
             </span>
           )}
           {!isError && lastOk !== null && (

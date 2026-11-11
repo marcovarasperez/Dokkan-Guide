@@ -1,0 +1,208 @@
+ALGORITMO DE HIDDEN POTENTIAL — Dokkan Fan Guide
+================================================
+Codigo: app/src/model/hp.ts, role.ts y damage.ts
+Tests:  app/tests/role.test.ts y app/tests/hp.test.ts
+
+
+0. QUE CALCULA
+--------------
+Para cada personaje y para cada uno de sus estados (Normal, EZA, SEZA) devuelve:
+  - niveles de Adicional, Critico y Evasion
+  - el rol del personaje y su slot
+  - las probabilidades totales (pasiva + Hidden Potential)
+  - los pasos del calculo
+
+Cada estado usa SU pasiva y SUS Super Ataques, asi que un personaje puede tener
+hasta 3 repartos distintos.
+
+
+1. REGLAS FIJAS DEL JUEGO
+-------------------------
+  - Se reparten 21 puntos: 15 a una rama y 6 a otra. La tercera queda a 0.
+  - Afinidad de tipo: +5 puntos gratis que se suman a su rama:
+        AGL -> Adicional     PHY -> Adicional
+        STR -> Critico       TEQ -> Critico
+        INT -> Evasion
+  - Valor de cada punto:
+        Adicional = 2 %      Critico = 2 %      Evasion = 1 %
+
+
+2. DE DONDE SALE LA RECOMENDACION (por orden)
+---------------------------------------------
+  1) Guia manual: app/public/data/hidden_potential.json
+     Una entrada por personaje y estado (base / eza / seza). Si falta la de un
+     estado se usa la del anterior: SEZA -> EZA -> Normal.
+  2) Calculo (todo lo que sigue en este documento).
+  3) Estimacion por rol, solo si no hay texto de pasiva (sin conexion):
+        ATK >= DEF -> Adicional 15, Critico 6
+        DEF >  ATK -> Evasion 15, Adicional 6
+
+
+3. LECTURA DE LA PASIVA (texto en ingles de dokkaninfo)
+-------------------------------------------------------
+La pasiva se parte en lineas de efecto ("- ...") bajo sus cabeceras ("*...*").
+
+Palabras de probabilidad:
+        rare = 15 %    medium = 30 %    high = 50 %    great = 70 %    very high = 82,5 %
+
+CRITICO y EVASION de la pasiva:
+  - Se SUMAN todas las lineas del mismo tipo (tope 100 %).
+  - "X% (up to Y%)" cuenta por su maximo, Y.
+  - "Performs a critical hit" / "Evades enemy's attack" sin condicion = 100 %.
+  NO cuentan:
+  - efectos dirigidos a aliados ("allies' ...", "for "Unidad"")
+  - bajadas (icono de flecha roja)
+  - "Can nullify attacks that are guaranteed to hit..." (no es esquiva garantizada)
+  - garantizados con condicion en la misma linea (if, when, "as the 1st attacker",
+    against, once...)
+
+ADICIONALES de la pasiva:
+  - "Launches an additional (Super) Attack" = 1 garantizado.
+  - "up to N" o "N additional attacks" = N (maximo 5).
+  - Con probabilidad de LANZAR ("X% chance of launching an additional") = probable.
+  - "...has a high chance of BECOMING a Super Attack" cuenta como garantizado:
+    el ataque se lanza siempre, lo probable es que sea Super.
+
+ACUMULADOR (stacker): el Super sube ATK o DEF
+  - sin limite de turnos ("Greatly raises DEF and causes...")  -> acumula infinito
+  - o durante 6-99 turnos
+  "Raises ATK & DEF for 1 turn" NO es acumulador.
+
+
+4. DAÑO EFECTIVO (para comparar con su epoca)
+---------------------------------------------
+  daño = ATK x (1 + 2 x lider%) x (1 + pasiva%) x (mejor Super% + subida de ATK del Super%)
+
+  - ATK: el del estado vigente.
+  - Lider: los DOS huecos con la mejor leader skill entre los lideres 200%+ que
+    dokkaninfo lista para ese personaje (si no tiene, la suya).
+  - Pasiva: suma de las subidas de ATK propias. Escalados por su maximo. No
+    cuentan buffs a aliados ni bajadas.
+  - Super: el mayor multiplicador a nivel maximo entre Super, Ultra, EX y Unit
+    Super Attack:  increase_rate + lv_bonus x (nivel - 1)
+
+  Comparacion: daño del personaje / percentil 75 del daño de las UR/LR que
+  salieron o recibieron EZA/SEZA en los 6 meses antes o despues de su ultima
+  fecha (salida, EZA o SEZA).
+
+  Lo calcula tools/damage_sync.mjs para todas las UR/LR y lo guarda en
+  app/public/data/damage.index.json. Solo guarda el estado vigente.
+  No incluye multiplicador de Ki, links ni apoyos de aliados.
+
+
+5. ROL DEL PERSONAJE
+--------------------
+Puntuaciones sacadas del texto (pasiva + Super):
+
+  TANQUE  = % de reducción de daño (los rangos "(50% - 90%)" cuentan el maximo)
+            + 40 si "guards all attacks"
+            + 15 si contraataca
+            + 15 si el Super sube mucho la DEF
+            + 10 si se potencia con cada golpe recibido
+  DAÑO    = % de critico de la pasiva + 20 por cada adicional
+            + 15 si gana ATK al lanzar Super
+            + 10 si anula el guard enemigo
+            + 10 si es efectivo contra todos los tipos
+  SOPORTE = 15 por cada buff a aliados + 10 por curacion + 10 por debuff/stun/seal
+
+Decision, en este orden (gana la primera que se cumpla):
+
+  1. ACUMULADOR (Slot 2)       el Super acumula ATK/DEF (punto 3)
+  2. SUPERVIVIENTE (Slot 3)    se cumplen las tres:
+                                 a) kit de esquiva: evasion de la pasiva >= 40 %
+                                    o el Super menciona esquivar
+                                 b) evasion de la pasiva < 70 %
+                                 c) poco daño: DAÑO < 20, o daño efectivo < 70 %
+                                    del de su epoca (punto 4)
+  3. TANQUE DE ESQUIVA (Slot 1) evasion >= 40 % y evasion >= TANQUE
+  4. HIBRIDO (Slot 1 o 2)       TANQUE >= 40 y DAÑO >= 40
+  5. SOPORTE (Slot 3)           SOPORTE mayor que TANQUE y que DAÑO
+  6. TANQUE (Slot 1)            TANQUE > DAÑO
+  7. DAÑO / NUKER (Slot 2)      DAÑO > 0
+  8. HIBRIDO                    sin pistas en el texto
+
+
+6. REPARTO DE LOS PUNTOS
+------------------------
+Sigue el criterio de las guias de Playmaker. Se mira en este orden:
+
+  A) SUPERVIVIENTE
+        Evasion 15 + Adicional 6 + Critico 0
+     No hace daño y rellena huecos: todo a sobrevivir.
+     Ejemplo: Hercule INT (EZA) -> Adicional 6, Critico 0, Evasion 20.
+
+  B) DEFENSA QUE SE PIERDE AL RECIBIR GOLPES
+     La pasiva tiene una cabecera "Before receiving N attacks" (o "Until
+     receiving N attacks") con DEF o reduccion de daño debajo.
+        Evasion 15 + Adicional 6 + Critico 0
+     Esquivar alarga esa defensa.
+     Ejemplo: Kid Buu STR (EZA) -> Adicional 6, Critico 5, Evasion 15.
+
+  C) TODOS LOS DEMAS: "full adicionales"
+        Adicional 15 + 6 puntos a Critico o a Evasion
+     Mas Super = mas ATK/DEF por Super y mas acumulacion.
+
+     A donde van los 6 puntos (gana la primera que se cumpla):
+
+       1. Necesita RECIBIR golpes para potenciarse -> CRITICO
+          (cabecera "For every attack received", "With each attack received",
+          "After receiving an attack / N attacks" con ATK, DEF o critico debajo;
+          o revive / "Survives K.O."). "received or evaded" no cuenta.
+       2. Ya es "efectivo contra todos los tipos" y su pasiva esquiva menos
+          del 50 % -> EVASION
+       3. La pasiva tiene bastante mas de una cosa que de la otra (diferencia de
+          20 puntos o mas) -> a la que MENOS tiene:
+              mucho critico  -> EVASION
+              mucha evasion  -> CRITICO
+       4. Estan parecidas -> a la que NO da ya su tipo:
+              STR / TEQ (traen 5 de Critico)  -> EVASION
+              INT (trae 5 de Evasion)         -> CRITICO
+              AGL / PHY                       -> CRITICO
+
+     Motivo de 3 y 4: pasiva y Hidden Potential no se suman, se combinan
+     multiplicando, asi que repetir lo que ya tiene renta poco.
+
+Despues se suman los +5 de afinidad a su rama.
+
+
+7. PROBABILIDADES TOTALES
+-------------------------
+  Critico total  = 1 - (1 - critico pasiva) x (1 - puntos x 2 %)
+  Evasion total  = 1 - (1 - evasion pasiva) x (1 - puntos x 1 %)
+  Adicional total (prob. de que el Hidden Potential añada al menos un ataque):
+        p = puntos x 2 %
+        cada ataque garantizado (el inicial + los garantizados de la pasiva)
+        aporta (1 - p); cada adicional probable con probabilidad q aporta (1 - p x q)
+        total = 1 - producto de todos esos factores
+        Se reparte 50 % Super / 50 % normal.
+
+
+8. EJEMPLOS COMPROBADOS
+-----------------------
+  Personaje                     Rol                   Adic.  Crit.  Evas.
+  Hit INT                       Acumulador             15      6      5
+  Krillin INT                   Tanque de esquiva      15      6      5
+  Pan (GT) PHY (EZA)            Tanque de esquiva      20      6      0
+  Super Baby 2 INT (EZA)        Tanque de esquiva      15      6      5
+  Yamcha STR                    Hibrido                15      5      6
+  Kid Buu STR (EZA)             Hibrido                 6      5     15
+  Hercule INT (EZA)             Superviviente           6      0     20
+  Trunks (Teen) INT             Tanque de esquiva      15      6      5
+
+  Hit, Krillin, Pan, Hercule y Trunks estan comprobados en la app con la version
+  actual. Super Baby 2, Yamcha y Kid Buu se comprobaron contra las guias de
+  Playmaker antes de los ultimos ajustes y no se han vuelto a ejecutar.
+
+
+9. LIMITES CONOCIDOS
+--------------------
+  - Los criterios de Playmaker salen de 3 videos de su playlist (mas de 100).
+  - El daño efectivo no incluye Ki, links ni apoyos: sirve para comparar, no es
+    el daño real.
+  - La comparacion con su epoca solo se aplica al estado vigente. En los demas
+    estados el rol Superviviente se decide solo por el texto.
+  - Una unidad nueva no esta en damage.index.json hasta volver a ejecutar
+    tools/damage_sync.mjs.
+  - Los umbrales (40 %, 70 %, 20 puntos, 70 % del daño de su epoca) estan
+    elegidos a mano con pocos casos.
+  - Las formas transformadas no tienen tarjeta de Hidden Potential.

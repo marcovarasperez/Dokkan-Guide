@@ -2673,6 +2673,272 @@ a {
   color: var(--text-dim);
 }
 
+.hp-level__aff {
+  font-size: 10px;
+  color: #a5d6a7;
+}
+
+/* Origen de la recomendación (guía / cálculo / estimación) */
+.hp-kind {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #4a7a45;
+  color: #c8e6c9;
+}
+.hp-kind--estimated {
+  border-color: #b58b2a;
+  color: #ffd27a;
+}
+
+.hp-totals {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.hp-totals small,
+.hp-note,
+.hp-source {
+  color: var(--text-dim);
+}
+.hp-note {
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.hp-steps {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.hp-steps summary {
+  cursor: pointer;
+  color: #c8e6c9;
+}
+.hp-steps ol {
+  padding-left: 18px;
+  margin: 6px 0;
+  display: grid;
+  gap: 4px;
+}
+
+/* ---------- Visor de páginas de catálogo de dokkaninfo (DkPageView) ---------- */
+.dk-page {
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.dk-page .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.dk-page .col,
+.dk-page [class*='col-'] {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 6px;
+}
+.dk-page .bg-main,
+.dk-page .bg-second {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 6px 0;
+  padding: 4px;
+}
+.dk-page .bg-third {
+  background: var(--panel-2);
+  border-radius: 6px;
+}
+.dk-page .card-icon {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+}
+.dk-page .card-icon-item {
+  position: absolute;
+  inset: 0;
+}
+.dk-page .card-icon-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dk-page img {
+  max-width: 100%;
+  height: auto;
+}
+.dk-page .img-fluid {
+  display: block;
+  margin: 0 auto;
+}
+.dk-page a {
+  color: inherit;
+}
+.dk-page [class*='font-size-1_5'] {
+  font-size: 16px;
+  font-weight: 600;
+}
+/* En móvil, las filas de catálogo (icono · nombre · descripción) se apilan */
+@media (max-width: 640px) {
+  .dk-page .col-sm {
+    flex: 1 1 100%;
+  }
+  .dk-page .card-icon.col-sm {
+    flex: 0 0 72px;
+  }
+}
+
+.dk-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.dk-tiles__group {
+  margin: 14px 0 8px;
+  font-size: 15px;
+}
+.dk-tile {
+  display: flex;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 13px;
+}
+.dk-tile img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex: 0 0 64px;
+}
+.dk-tile p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  white-space: pre-line;
+}
+.dk-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.dk-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  font-size: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.dk-card img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+.dk-card__date {
+  color: var(--text-dim);
+}
+
+/* ---------- Herramientas y Links ---------- */
+.tool-picker {
+  margin: 8px 0 12px;
+}
+.tool-results {
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.tool-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.tool-result img {
+  width: 40px;
+  height: 40px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+}
+.tool-result small {
+  color: var(--text-dim);
+}
+.tool-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.tool-remove {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+.tool-links {
+  margin-top: 14px;
+}
+.links-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.links-table th,
+.links-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.links-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.links-item summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.links-item__fx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.links-item__owners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 0;
+}
+.links-item__owners img {
+  width: 52px;
+  height: 52px;
+}
+.list-subtabs {
+  padding: 0 12px;
+}
+
 .detail-legal {
   text-align: center;
   font-size: 12px;
@@ -5307,4 +5573,25 @@ a.acq-chip {
   .notif-permission-content h3 {
     font-size: 16px;
   }
+}
+.dk-group {
+  margin: 8px 0;
+  padding: 6px 10px;
+}
+.dk-group summary {
+  cursor: pointer;
+  margin: 4px 0;
+}
+a.links-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 8px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.hp-role {
+  margin: 8px 0 0;
+  font-size: 13px;
 }

@@ -27,3 +27,4 @@ tools/.zbattles-cache.json
 dokkan-fan.keystore
 *.keystore
 *.jks
+tools/.damage-cache.json

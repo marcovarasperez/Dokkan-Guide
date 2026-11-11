@@ -1,71 +1,50 @@
-import { useListController } from '../controller/listController';
-import UnitGrid from './UnitGrid';
-import FilterBar from './FilterBar';
+import { useMemo, useState } from 'preact/hooks';
+import { useLinksIndex } from '../controller/toolsController';
+import SubTabs from './SubTabs';
 
 /**
- * Vista "Links": listado de todos los Link Skills disponibles.
- * Permite filtrar y buscar entre todos los links del juego.
+ * VISTA · "Cards › Links": todos los Link Skills con su efecto a Nv. 1 y
+ * Nv. 10 (seed `links.index.json`, de dokkaninfo /links), con buscador por
+ * nombre o efecto. Cada link abre su página de dokkaninfo dentro de la app
+ * (#/dk/links/{id}: los 10 niveles y los personajes que lo tienen).
  */
 export default function LinksView() {
-  const {
-    list,
-    count,
-    query,
-    onQuery,
-    selectedTypes,
-    onToggleType,
-    selectedClasses,
-    onToggleClass,
-    selectedRarities,
-    onToggleRarity,
-    selectedCategories,
-    onToggleCategory,
-    categoryFilterMode,
-    onToggleCategoryMode,
-    categoriesIndex,
-    sortBy,
-    onSortBy,
-    sortDesc,
-    onToggleSort,
-    onClear,
-  } = useListController();
+  const links = useLinksIndex();
+  const [q, setQ] = useState('');
 
-  // En esta vista mostramos los links, no las unidades
-  // Por simplicidad, reutilizamos la estructura de listado
+  const rows = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const all = Array.from(links.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return s ? all.filter((l) => `${l.name} ${l.lv1} ${l.lv10}`.toLowerCase().includes(s)) : all;
+  }, [links, q]);
 
   return (
     <div class="feed-scroll">
-      <div class="feed feed--banners">
+      <div class="feed">
+        <SubTabs section="cards" label="Secciones de cartas" />
         <div class="feed__head">
-          <h2>Links</h2>
+          <h2>Links ({rows.length})</h2>
         </div>
-        <p class="empty-state">Vista de Links en desarrollo. Próximamente mostrará todos los Link Skills con sus efectos, unidades que los poseen, y filtros por nombre/efecto.</p>
-        <FilterBar
-          query={query}
-          onQuery={onQuery}
-          selectedTypes={selectedTypes}
-          onToggleType={onToggleType}
-          selectedClasses={selectedClasses}
-          onToggleClass={onToggleClass}
-          selectedRarities={selectedRarities}
-          onToggleRarity={onToggleRarity}
-          selectedCategories={selectedCategories}
-          onToggleCategory={onToggleCategory}
-          categoryFilterMode={categoryFilterMode}
-          onToggleCategoryMode={onToggleCategoryMode}
-          categoriesIndex={categoriesIndex}
-          sortBy={sortBy}
-          onSortBy={onSortBy}
-          onClear={onClear}
-          sortDesc={sortDesc}
-          onToggleSort={onToggleSort}
-          count={count}
+        <input
+          type="search"
+          class="filter-bar__input"
+          placeholder="Buscar link o efecto…"
+          value={q}
+          onInput={(e) => setQ((e.target as HTMLInputElement).value)}
         />
-        {count === 0 ? (
-          <p class="empty-state">Sin resultados con los filtros actuales.</p>
-        ) : (
-          <UnitGrid units={list} />
-        )}
+        {links.size === 0 && <p class="game-loading">Cargando…</p>}
+        <div class="links-list">
+          {rows.map((l) => (
+            <a class="game-card links-item" key={l.name} href={`#/dk/${encodeURIComponent(`links/${l.id}`)}`}>
+              <b>{l.name}</b>
+              <span class="links-item__fx">
+                <span>Nv. 1: {l.lv1}</span>
+                <span>Nv. 10: {l.lv10}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+        <p class="game-legal">Datos: DOKKANINFO · Proyecto fan no comercial</p>
       </div>
     </div>
   );

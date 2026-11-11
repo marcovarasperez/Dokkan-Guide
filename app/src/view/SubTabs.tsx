@@ -1,55 +1,29 @@
-import type { JSX } from 'preact';
+import { subTabsOf } from '../controller/navigation';
 
 /**
- * Navegación de sub-pestañas compartida por las vistas contenedor
- * (Items, Missions y Tools): barra `items-tabs` + cabecera `feed__head`.
+ * VISTA · Barra de SUB-PESTAÑAS de una sección (Cards, Events, Items,
+ * Missions, Baba's Shop, Tools…), como la fila de sub-secciones de
+ * dokkaninfo. Las pestañas salen del árbol único `controller/navigation.ts`;
+ * la activa se marca según la ruta actual. Desplazable en horizontal en móvil.
  */
-
-export interface SubTab {
-  /** Id de la vista (`View` del router) que activa la pestaña. */
-  id: string;
-  label: string;
-  href: string;
-}
-
-/** Pestaña visible según la vista actual (fallback: la primera). */
-export function activeSubTab(tabs: SubTab[], currentView: string): SubTab {
-  return tabs.find((t) => t.id === currentView) ?? tabs[0];
-}
-
-export default function SubTabs({
-  tabs,
-  currentView,
-  navLabel,
-  title,
-}: {
-  tabs: SubTab[];
-  currentView: string;
-  navLabel: string;
-  title: string;
-}): JSX.Element {
-  const activeTab = activeSubTab(tabs, currentView);
-
+export default function SubTabs({ section, label }: { section: string; label: string }) {
+  const tabs = subTabsOf(section);
+  if (tabs.length < 2) return null;
   return (
-    <>
-      <nav class="items-tabs" aria-label={navLabel}>
-        {tabs.map((tab) => (
+    <nav class="items-tabs" aria-label={label}>
+      {tabs.map((t) => {
+        const on = t.active();
+        return (
           <a
-            key={tab.id}
-            class={`items-tab${tab.id === currentView ? ' items-tab--active' : ''}`}
-            href={tab.href}
-            aria-current={tab.id === currentView ? 'page' : undefined}
+            key={t.href}
+            class={`items-tab${on ? ' items-tab--active' : ''}`}
+            href={t.href}
+            aria-current={on ? 'page' : undefined}
           >
-            {tab.label}
+            {t.label}
           </a>
-        ))}
-      </nav>
-
-      <div class="feed__head">
-        <h2>
-          {title} · {activeTab.label}
-        </h2>
-      </div>
-    </>
+        );
+      })}
+    </nav>
   );
 }

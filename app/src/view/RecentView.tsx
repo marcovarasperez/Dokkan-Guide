@@ -16,7 +16,9 @@ export default function RecentView() {
     const groups = new Map<string, UnitSummary[]>();
     for (const u of units) {
       if (!u.releaseDates?.latest) continue;
-      const key = u.name + '|' + u.type;
+      // …y día de salida: sin él, una UR nueva ("Super Saiyan Goku" AGL) se agrupaba
+      // con LR antiguas del mismo nombre y tipo y desaparecía de Recientes.
+      const key = u.name + '|' + u.type + '|' + Math.floor((u.releaseDates.initial ?? 0) / 86400);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(u);
     }

@@ -30,7 +30,8 @@ export function StatusBlock({ status, onRetry }: { status: string; onRetry: () =
 
 /** Fila de lista "cargar más". */
 export function LoadMore({ page, lastPage, onMore }: { page: number; lastPage: number; onMore: () => void }) {
-  if (page >= lastPage) return null;
+  // page 0 = aún no ha llegado la primera página: no hay "más" que cargar.
+  if (page < 1 || page >= lastPage) return null;
   return (
     <button type="button" class="game-more" onClick={onMore}>
       Cargar más (página {page + 1} de {lastPage})
@@ -38,7 +39,9 @@ export function LoadMore({ page, lastPage, onMore }: { page: number; lastPage: n
   );
 }
 
-const isEventActive = (e: GameEvent): boolean => !e.endsAt || e.endsAt * 1000 > Date.now();
+/** Badge «Activo» solo cuando la fuente publica la vigencia (sin fecha de fin no se afirma). */
+const isEventActive = (e: GameEvent): boolean =>
+  !!e.endsAt && e.endsAt * 1000 > Date.now() && (!e.startsAt || e.startsAt * 1000 <= Date.now());
 
 /** Icono de un drop: carta → thumb enlazada; objeto → miniatura de item. */
 function RewardChip({ drop }: { drop: DkEventStageDrop }) {

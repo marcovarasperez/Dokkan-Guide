@@ -8,7 +8,10 @@ import MiniUnitCard from './MiniUnit';
 import InfoImg, { hideBroken } from './InfoImg';
 
 /** Etiqueta de estado para textos de aviso. */
-const stateLabel = (k: 'base' | 'eza' | 'seza'): string =>
+/** Probabilidad 0-1 → "45,3 %". */
+const pct = (x: number): string => `${(Math.round(x * 1000) / 10).toString().replace('.', ',')} %`;
+
+const stateLabel =(k: 'base' | 'eza' | 'seza'): string =>
   k === 'base' ? 'Normal' : k === 'eza' ? 'EZA' : 'SEZA';
 
 /** Sección estándar del detalle (estilo dokkaninfo). */
@@ -326,11 +329,16 @@ export default function UnitDetail({ id }: { id: number }) {
             </div>
           </div>
 
-          {/* Hidden Potential: resumen minimalista (solo en la vista vigente) */}
-          {hp && !viewingForm && !pastState && (
+          {/* Hidden Potential del estado visible (Normal / EZA / SEZA): cada uno tiene el suyo */}
+          {hp && (
             <section class="hp-card">
               <header class="hp-card__head">
-                <h3>Hidden Potential</h3>
+                <h3>
+                  Hidden Potential{stateChips.length > 0 && ` · ${stateLabel(viewState)}`}
+                </h3>
+                <span class={`hp-kind hp-kind--${hp.kind}`} title={hp.source}>
+                  {hp.kind === 'curated' ? 'Guía' : hp.kind === 'algorithm' ? 'Cálculo' : 'Estimación'}
+                </span>
               </header>
               <div class="hp-card__levels">
                 {(['additional', 'critical', 'evasion'] as const).map((k) => {
@@ -346,10 +354,49 @@ export default function UnitDetail({ id }: { id: number }) {
                         onError={hideBroken}
                       />
                       <b class="hp-level__value">{total}</b>
+                      {hp.affinity.skill === k && <small class="hp-level__aff">+{hp.affinity.points} afinidad</small>}
                     </span>
                   );
                 })}
               </div>
+              {hp.role && (
+                <p class="hp-role" title={hp.role.reasons.join(', ') || 'sin pistas en el texto'}>
+                  Rol: <b>{hp.role.label}</b> · {hp.role.slot}
+                </p>
+              )}
+              {/* Probabilidades totales (pasiva + Hidden Potential) */}
+              <ul class="hp-totals">
+                <li>
+                  Adicional <b>{pct(hp.totals.additional)}</b>
+                  <small> ({pct(hp.totals.additionalSuper)} Super · {pct(hp.totals.additionalNormal)} normal)</small>
+                </li>
+                <li>
+                  Crítico <b>{pct(hp.totals.critical)}</b>
+                </li>
+                <li>
+                  Evasión <b>{pct(hp.totals.evasion)}</b>
+                </li>
+              </ul>
+              <p class="hp-note">{hp.note}</p>
+              <details class="hp-steps">
+                <summary>Cómo se ha calculado</summary>
+                <ol>
+                  {hp.steps.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ol>
+                <p class="hp-source">
+                  {hp.source}
+                  {hp.sourceUrl && (
+                    <>
+                      {' · '}
+                      <a href={hp.sourceUrl} target="_blank" rel="noopener">
+                        fuente
+                      </a>
+                    </>
+                  )}
+                </p>
+              </details>
             </section>
           )}
 

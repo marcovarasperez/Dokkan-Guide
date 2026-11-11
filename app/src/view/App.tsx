@@ -3,10 +3,9 @@ import {
   bannerDetailId,
   categoryId,
   detailId,
+  dkPath,
   eventsFocus,
-  EVENT_VIEWS,
   initRouter,
-  ITEM_VIEWS,
   newsDetailId,
   view,
 } from '../controller/router';
@@ -29,6 +28,8 @@ import ItemsView from './ItemsView';
 import MissionsView from './MissionsView';
 import ToolsView from './ToolsView';
 import InfoView from './InfoView';
+import DkPageView from './DkPageView';
+import SubTabs from './SubTabs';
 import { manualRefresh, syncState } from '../model/sync';
 import { requestPermission, setNotificationPermissionAsked, areNotificationsEnabled, hasAskedNotificationPermission } from '../model/notifications';
 import { readSyncMeta } from '../model/repository';
@@ -212,120 +213,72 @@ export default function App() {
     );
   }
 
-  // Helper para vistas que usan el listado de personajes con filtros
-  const isListView = currentView === 'list' || currentView === 'cards' || currentView === 'categories' || currentView === 'links';
-  const isDetailView = currentView === 'detail';
-  const isNewsView = currentView === 'news' || currentView === 'newsDetail';
-  const isBannersView = currentView === 'banners' || currentView === 'bannerDetail' || currentView === 'bannerAnimations';
-  const isEventsView = EVENT_VIEWS.includes(currentView);
-  const isItemsView = ITEM_VIEWS.includes(currentView);
+  // Vista activa → componente (la ruta y la vista las decide controller/router.ts).
   const isMissionsView = currentView === 'missions' || currentView === 'panelMissions';
-  const isToolsView = currentView === 'tools' || currentView === 'toolsLinkTool' || currentView === 'toolsLeaderSkill';
+  const isToolsView = currentView === 'toolsLinkTool' || currentView === 'toolsLeaderSkill';
+  const loading = <p class="empty-state">Cargando datos…</p>;
+
+  let content;
+  if (currentView === 'recent') content = <RecentView />;
+  else if (currentView === 'newsDetail' && newsDetail !== null) content = <NewsDetail id={newsDetail} />;
+  else if (currentView === 'news') content = <NewsView />;
+  else if (currentView === 'bannerDetail' && bannerDetail !== null) content = <BannerDetail id={bannerDetail} units={units} />;
+  else if (currentView === 'banners') content = <BannersView />;
+  else if (currentView === 'events') content = <EventosView focus={focus} />;
+  else if (currentView === 'items') content = <ItemsView />;
+  else if (isMissionsView) content = <MissionsView />;
+  else if (currentView === 'baba') content = <BabaView />;
+  else if (isToolsView) content = <ToolsView />;
+  else if (currentView === 'info') content = <InfoView />;
+  else if (currentView === 'settings') content = <SettingsView />;
+  else if (currentView === 'categories') content = <CategoryView id={category} units={units} />;
+  else if (currentView === 'links') content = <LinksView />;
+  else if (currentView === 'schedule')
+    content = <DkPageView path="schedule" title="Schedule" header={<SubTabs section="cards" label="Secciones de cartas" />} />;
+  else if (currentView === 'dkPage' && dkPath.value) content = <DkPageView key={dkPath.value} path={dkPath.value} />;
+  else if (currentView === 'detail' && detail !== null)
+    content = units.length === 0 ? loading : (
+      <div class="detail-scroll">
+        <UnitDetail id={detail} />
+      </div>
+    );
+  else
+    content = units.length === 0 ? loading : (
+      <>
+        <div class="list-subtabs">
+          <SubTabs section="cards" label="Secciones de cartas" />
+        </div>
+        <FilterBar
+          query={query}
+          onQuery={onQuery}
+          selectedTypes={selectedTypes}
+          onToggleType={onToggleType}
+          selectedClasses={selectedClasses}
+          onToggleClass={onToggleClass}
+          selectedRarities={selectedRarities}
+          onToggleRarity={onToggleRarity}
+          selectedCategories={selectedCategories}
+          onToggleCategory={onToggleCategory}
+          categoryFilterMode={categoryFilterMode}
+          onToggleCategoryMode={onToggleCategoryMode}
+          categoriesIndex={categoriesIndex}
+          sortBy={sortBy}
+          onSortBy={onSortBy}
+          onClear={onClear}
+          sortDesc={sortDesc}
+          onToggleSort={onToggleSort}
+          count={count}
+        />
+        {count === 0 ? <p class="empty-state">Sin resultados con los filtros actuales.</p> : <UnitGrid units={list} />}
+      </>
+    );
 
   return (
     <div class="app-shell">
       <div class="app-top">
         <Header view={currentView} />
       </div>
-      {currentView === 'recent' ? (
-        <RecentView />
-      ) : isNewsView ? (
-        newsDetail !== null ? <NewsDetail id={newsDetail} /> : <NewsView />
-      ) : isBannersView && bannerDetail !== null ? (
-        <BannerDetail id={bannerDetail} units={units} />
-      ) : isBannersView ? (
-        <BannersView />
-      ) : isEventsView ? (
-        <EventosView focus={focus} />
-      ) : isItemsView ? (
-        <ItemsView />
-      ) : isMissionsView ? (
-        <MissionsView />
-      ) : currentView === 'baba' ? (
-        <BabaView />
-      ) : isToolsView ? (
-        <ToolsView />
-      ) : currentView === 'info' ? (
-        <InfoView />
-      ) : currentView === 'settings' ? (
-        <SettingsView />
-      ) : currentView === 'categories' ? (
-        <CategoryView id={category} units={units} />
-      ) : currentView === 'links' ? (
-        <LinksView />
-      ) : isDetailView ? (
-        units.length === 0 ? (
-          <p class="empty-state">Cargando datos…</p>
-        ) : (
-          <div class="detail-scroll">
-            <UnitDetail id={detail} />
-          </div>
-        )
-      ) : isListView ? (
-        units.length === 0 ? (
-          <p class="empty-state">Cargando datos…</p>
-        ) : (
-          <>
-            <FilterBar
-              query={query}
-              onQuery={onQuery}
-              selectedTypes={selectedTypes}
-              onToggleType={onToggleType}
-              selectedClasses={selectedClasses}
-              onToggleClass={onToggleClass}
-              selectedRarities={selectedRarities}
-              onToggleRarity={onToggleRarity}
-              selectedCategories={selectedCategories}
-              onToggleCategory={onToggleCategory}
-              categoryFilterMode={categoryFilterMode}
-              onToggleCategoryMode={onToggleCategoryMode}
-              categoriesIndex={categoriesIndex}
-              sortBy={sortBy}
-              onSortBy={onSortBy}
-              onClear={onClear}
-              sortDesc={sortDesc}
-              onToggleSort={onToggleSort}
-              count={count}
-            />
-            {count === 0 ? (
-              <p class="empty-state">Sin resultados con los filtros actuales.</p>
-            ) : (
-              <UnitGrid units={list} />
-            )}
-          </>
-        )
-      ) : units.length === 0 ? (
-        <p class="empty-state">Cargando datos…</p>
-      ) : (
-        <>
-          <FilterBar
-            query={query}
-            onQuery={onQuery}
-            selectedTypes={selectedTypes}
-            onToggleType={onToggleType}
-            selectedClasses={selectedClasses}
-            onToggleClass={onToggleClass}
-            selectedRarities={selectedRarities}
-            onToggleRarity={onToggleRarity}
-            selectedCategories={selectedCategories}
-            onToggleCategory={onToggleCategory}
-            categoryFilterMode={categoryFilterMode}
-            onToggleCategoryMode={onToggleCategoryMode}
-            categoriesIndex={categoriesIndex}
-            sortBy={sortBy}
-            onSortBy={onSortBy}
-            onClear={onClear}
-            sortDesc={sortDesc}
-            onToggleSort={onToggleSort}
-            count={count}
-          />
-          {count === 0 ? (
-            <p class="empty-state">Sin resultados con los filtros actuales.</p>
-          ) : (
-            <UnitGrid units={list} />
-          )}
-        </>
-      )}
+      {content}
       {/* Modal de permiso de notificaciones (overlay sobre la app) */}
       <NotificationPermissionModal
         isOpen={showNotifModal}

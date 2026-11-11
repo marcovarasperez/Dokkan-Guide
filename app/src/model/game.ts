@@ -2,7 +2,7 @@ import { signal } from '@preact/signals';
 import type { Signal } from '@preact/signals';
 import { fetchInfoText } from './http';
 import { decodeEntities } from './html';
-import { parseEventDetail, parseEventList, parseMissions } from './dinfo';
+import { parseEventDetail, parseEventList, parseEventListLastPage, parseMissions } from './dinfo';
 import type { DkEventDetail, DkMissionCategory } from './dinfo';
 import { dbGet, dbSet, STORE_EVENTS } from './localDb';
 import { INFO_CDN } from './constants';
@@ -23,8 +23,29 @@ import { INFO_CDN } from './constants';
  *   muestran sin romper la vista.
  */
 
-/** Sub-pestañas de la vista Eventos. */
-export type EventTab = 'events' | 'quest' | 'dbstory' | 'zbattles' | 'wt' | 'missions';
+/**
+ * Categorías de eventos, en el MISMO orden y con el MISMO segmento de URL que
+ * el menú "Events" de dokkaninfo.com (/events/{type}). Cada una es una
+ * sub-pestaña de la vista Eventos.
+ */
+export const EVENT_TYPES = [
+  { type: 'burstmode', label: 'Burst Mode', slug: 'burst' },
+  { type: 'bonus', label: 'Bonus', slug: 'bonus' },
+  { type: 'challenge', label: 'Challenge', slug: 'challenge' },
+  { type: 'dbstories', label: 'DB Stories', slug: 'dbstories' },
+  { type: 'zbattle', label: 'Extreme Z Battle', slug: 'extreme-z-battle' },
+  { type: 'growth', label: 'Growth', slug: 'growth' },
+  { type: 'limited', label: 'Limited', slug: 'limited' },
+  { type: 'sdbattle', label: 'Pettan Battle', slug: 'pettan-battle' },
+  { type: 'quest', label: 'Quest', slug: 'quest' },
+  { type: 'story', label: 'Story', slug: 'story' },
+  { type: 'dokkanfrontier', label: 'Dokkan Frontier', slug: 'dokkan-frontier' },
+  { type: 'rmbattle', label: 'Ultimate Clash', slug: 'ultimate-clash' },
+  { type: 'worldtournament', label: 'World Tournament', slug: 'world-tournament' },
+] as const;
+
+/** Segmento de URL de dokkaninfo de una categoría de eventos. */
+export type EventType = (typeof EVENT_TYPES)[number]['type'];
 
 interface SectionStatus {
   status: 'idle' | 'loading' | 'ok' | 'error';
@@ -101,6 +122,14 @@ export interface BabaChest {
 
 export type BabaShopKey = 'trade' | 'zeni' | 'treasure' | 'chests';
 
+/** Tiendas de Baba, en el orden y con el nombre del menú de dokkaninfo (/babashop/…). */
+export const BABA_SHOPS: { key: BabaShopKey; slug: string; label: string }[] = [
+  { key: 'trade', slug: 'intercambio', label: 'Trade Pts.' },
+  { key: 'zeni', slug: 'zeni', label: 'Zeni' },
+  { key: 'treasure', slug: 'tesoro', label: 'Treasure Items' },
+  { key: 'chests', slug: 'cofres', label: 'Secret Treasure Chests' },
+];
+
 /* ---------- Estado por sección ---------- */
 
 interface ListState<T> extends SectionStatus {
@@ -115,11 +144,11 @@ const emptyList = <T,>(): ListState<T> => ({
   updatedAt: null,
 });
 
-export const eventsState = signal<ListState<GameEvent>>(emptyList());
-export const questState = signal<ListState<GameEvent>>(emptyList());
-export const dbStoryState = signal<ListState<GameEvent>>(emptyList());
-export const zbattlesState = signal<ListState<GameEvent>>(emptyList());
-export const wtState = signal<ListState<GameEvent>>(emptyList());
+/** Listado de cada categoría de eventos (clave = tipo de URL de dokkaninfo). */
+export const eventLists = signal<Partial<Record<string, ListState<GameEvent>>>>({});
+
+/** Estado (o vacío) de una categoría de eventos. */
+export const eventListOf = (type: string): ListState<GameEvent> => eventLists.value[type] ?? emptyList();
 export const missionsState = signal<ListState<MissionGroup>>(emptyList());
 export const babaState = signal<Record<BabaShopKey, ListState<BabaItem | BabaChest>>>({
   trade: emptyList(),
@@ -222,12 +251,10 @@ const compareEvents = (a: GameEvent, b: GameEvent): number => {
   return b.id - a.id;
 };
 
-/** Tipos con lista propia que alimentan la pestaña "Eventos". */
-const MAIN_EVENT_TYPES = ['limited', 'story', 'growth', 'challenge', 'bonus'];
-
-async function fetchEventList(type: string): Promise<GameEvent[]> {
-  const html = await fetchInfoText(`/events/${type}`);
-  return parseEventList(html).map((e) => ({
+/** Descarga una página del listado de una categoría (/events/{type}). */
+async function fetchEventList(type: string, page = 1): Promise<{ items: GameEvent[]; lastPage: number }> {
+  const html = await fetchInfoText(page > 1 ? `/events/${type}?page=${page}` : `/events/${type}`);
+  const items = parseEventList(html).map((e) => ({
     id: e.id,
     type,
     name: e.name ?? '',
@@ -236,68 +263,59 @@ async function fetchEventList(type: string): Promise<GameEvent[]> {
     endsAt: e.endsAt,
     unit: null,
   }));
+  return { items, lastPage: parseEventListLastPage(html) };
 }
 
-export function loadEvents(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<GameEvent>(eventsState, 'events', async () => {
-    const results = await Promise.allSettled(MAIN_EVENT_TYPES.map((t) => fetchEventList(t)));
-    // Si fallan TODOS los listados, la fuente está caída: se propaga para que
-    // la vista muestre el estado de error con su reintento (no una rejilla vacía).
-    if (results.every((r) => r.status === 'rejected')) {
-      throw (results[0] as PromiseRejectedResult).reason;
-    }
-    const items = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
-    items.sort(compareEvents);
-    return { items, lastPage: 1 };
-  }, opts);
-}
-
-export function loadQuest(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<GameEvent>(questState, 'quest', async () => {
-    const items = (await fetchEventList('quest')).map((e) => ({
-      ...e,
-      name: e.name || `Área ${e.id}`,
-    }));
-    return { items, lastPage: 1 };
-  }, opts);
-}
-
-export function loadDbStory(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<GameEvent>(dbStoryState, 'dbstory', async () => {
-    const items = await fetchEventList('dbstories');
-    return { items, lastPage: 1 };
-  }, opts);
-}
+/** Nombres por defecto cuando el listado de la fuente no los trae. */
+const FALLBACK_NAME: Record<string, string> = {
+  quest: 'Área',
+  worldtournament: 'Torneo Mundial',
+  dbstories: 'DB Story',
+  sdbattle: 'Pettan Battle',
+  dokkanfrontier: 'Dokkan Frontier',
+};
 
 /** Nº de Z-Battles activos cuyo detalle se descarga para obtener nombre+carta. */
 const ZB_ENRICH_MAX = 12;
 
-export function loadZbattles(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<GameEvent>(zbattlesState, 'zbattles', async () => {
-    const items = (await fetchEventList('zbattle')).sort(compareEvents);
-    // El listado de Z-Battles no trae nombre: se enriquece con las páginas de
-    // detalle de los activos (título + carta objetivo que enlaza a la ficha).
-    const active = items.filter(isActive).slice(0, ZB_ENRICH_MAX);
-    await Promise.allSettled(
-      active.map(async (z) => {
-        const parsed = parseEventDetail(await fetchInfoText(`/events/zbattle/${z.id}`));
-        if (parsed.title) z.name = parsed.title;
-        if (parsed.unit) {
-          z.unit = { id: parsed.unit.id, name: parsed.unit.name, thumbnailId: parsed.unit.iconId };
-        }
-      }),
-    );
-    return { items, lastPage: 1 };
-  }, opts);
-}
+/**
+ * Carga (o pagina) el listado de UNA categoría de eventos. Mismo flujo para
+ * las 13 categorías del menú: caché local → red → caché. Los Z-Battles
+ * activos se enriquecen con su detalle (título + carta objetivo).
+ */
+export function loadEventType(type: string, opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
+  // Señal "virtual" por tipo sobre el mapa `eventLists` (loadList trabaja con una Signal).
+  const st = {
+    get value(): ListState<GameEvent> {
+      return eventListOf(type);
+    },
+    set value(v: ListState<GameEvent>) {
+      eventLists.value = { ...eventLists.value, [type]: v };
+    },
+  } as Signal<ListState<GameEvent>>;
 
-export function loadWt(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<GameEvent>(wtState, 'wt', async () => {
-    const items = (await fetchEventList('worldtournament')).map((e) => ({
-      ...e,
-      name: e.name || `Torneo Mundial ${e.id}`,
-    }));
-    return { items, lastPage: 1 };
+  return loadList<GameEvent>(st, `ev.${type}`, async (page) => {
+    const { items, lastPage } = await fetchEventList(type, page);
+    const prefix = FALLBACK_NAME[type];
+    for (const e of items) if (!e.name && prefix) e.name = `${prefix} ${e.id}`;
+    if (type === 'zbattle') {
+      items.sort(compareEvents);
+      // El listado de Z-Battles no trae nombre: se enriquece con las páginas de
+      // detalle de los activos (título + carta objetivo que enlaza a la ficha).
+      const active = items.filter(isActive).slice(0, ZB_ENRICH_MAX);
+      await Promise.allSettled(
+        active.map(async (z) => {
+          const parsed = parseEventDetail(await fetchInfoText(`/events/zbattle/${z.id}`));
+          if (parsed.title) z.name = parsed.title;
+          if (parsed.unit) {
+            z.unit = { id: parsed.unit.id, name: parsed.unit.name, thumbnailId: parsed.unit.iconId };
+          }
+        }),
+      );
+    } else if (type !== 'quest' && type !== 'dbstories') {
+      items.sort(compareEvents);
+    }
+    return { items, lastPage };
   }, opts);
 }
 
@@ -367,20 +385,12 @@ async function detailCacheWrite(key: string, data: DkEventDetail): Promise<void>
 
 /** Sustituye el nombre vacío de un evento listado con el título del detalle. */
 function patchEventName(type: string, id: number, title: string): void {
-  const patch = (st: Signal<ListState<GameEvent>>): void => {
-    const items = st.value.items;
-    const i = items.findIndex((e) => e.id === id && e.type === type);
-    if (i >= 0 && !items[i].name) {
-      const next = [...items];
-      next[i] = { ...next[i], name: title };
-      st.value = { ...st.value, items: next };
-    }
-  };
-  patch(eventsState);
-  if (type === 'quest') patch(questState);
-  if (type === 'dbstories') patch(dbStoryState);
-  if (type === 'zbattle') patch(zbattlesState);
-  if (type === 'worldtournament') patch(wtState);
+  const cur = eventListOf(type);
+  const i = cur.items.findIndex((e) => e.id === id);
+  if (i < 0 || cur.items[i].name) return;
+  const items = [...cur.items];
+  items[i] = { ...items[i], name: title };
+  eventLists.value = { ...eventLists.value, [type]: { ...cur, items } };
 }
 
 export async function loadEventDetail(type: string, id: number): Promise<void> {
@@ -421,17 +431,31 @@ const CJK_RE = /[぀-ヿ㐀-䶿一-鿿-鿿豈-﫿ｦ-ﾟ]/;
 
 /** Título legible: si el nombre de categoría está en japonés, se deriva del
  * primer nombre de misión entre comillas (el evento al que pertenece). */
+/** Etiquetas 【…】 de los nombres japoneses de categoría → nombre legible. */
+const MISSION_TAGS: [RegExp, string][] = [
+  [/極限Zバトル/, 'Extreme Z-Battle'],
+  [/超激戦/, 'Super Battle Road / Dokkan Event'],
+  [/チャレンジ/, 'Challenge'],
+  [/ドッカンフェス|フェス/, 'Dokkan Festival'],
+  [/物語|ストーリー/, 'Story'],
+  [/育成|強化/, 'Growth'],
+  [/記念|キャンペーン/, 'Campaign'],
+  [/天下一/, 'World Tournament'],
+];
+
 function missionTitle(cat: DkMissionCategory): string {
-  if (cat.name && !CJK_RE.test(cat.name)) return cat.name;
+  const name = cat.name.replace(/^\[en\]\s*/, '');
+  if (name && !CJK_RE.test(name)) return name;
   for (const m of cat.missions) {
     const q = m.name.match(/"([^"]{3,70})"/);
     if (q) return q[1];
   }
-  return 'Misiones';
+  const tag = MISSION_TAGS.find(([re]) => re.test(name));
+  return tag ? `${tag[1]} · Misiones` : 'Misiones';
 }
 
 export function loadMissions(opts: { append?: boolean; force?: boolean } = {}): Promise<void> {
-  return loadList<MissionGroup>(missionsState, 'missions', async (page) => {
+  return loadList<MissionGroup>(missionsState, 'missions.v2', async (page) => {
     const { categories, lastPage } = parseMissions(await fetchInfoText(`/missions?page=${page}`));
     const items = categories.map((c) => ({
       id: c.id,
@@ -451,35 +475,20 @@ export function loadMissions(opts: { append?: boolean; force?: boolean } = {}): 
 /* ---------- Deep-links de obtención (#/eventos?ev={type}/{id}) ---------- */
 
 /**
- * Asegura que el evento del deep-link está en su pestaña (carga el listado si
- * hace falta; si el evento ya rotó del listado, se añade sintético y el
- * detalle aporta el nombre). Devuelve el evento para enfocarlo.
+ * Asegura que el evento del deep-link está en el listado de su categoría
+ * (carga el listado si hace falta; si el evento ya rotó, se añade sintético y
+ * el detalle aporta el nombre). Devuelve el evento para enfocarlo.
  */
 export async function ensureEventForDeepLink(type: string, id: number): Promise<GameEvent | null> {
-  const st =
-    type === 'quest'
-      ? questState
-      : type === 'dbstories'
-        ? dbStoryState
-        : type === 'zbattle'
-          ? zbattlesState
-          : type === 'worldtournament'
-            ? wtState
-            : eventsState;
-  const find = (): GameEvent | undefined => st.value.items.find((e) => e.id === id && e.type === type);
+  const find = (): GameEvent | undefined => eventListOf(type).items.find((e) => e.id === id);
   const hit0 = find();
   if (hit0) return hit0;
-  if (st.value.status === 'idle') {
-    if (type === 'quest') await loadQuest();
-    else if (type === 'dbstories') await loadDbStory();
-    else if (type === 'zbattle') await loadZbattles();
-    else if (type === 'worldtournament') await loadWt();
-    else await loadEvents();
-  }
+  if (eventListOf(type).status === 'idle') await loadEventType(type);
   const hit1 = find();
   if (hit1) return hit1;
   const synth: GameEvent = { id, type, name: '', image: null, startsAt: null, endsAt: null, unit: null };
-  st.value = { ...st.value, items: [...st.value.items, synth] };
+  const cur = eventListOf(type);
+  eventLists.value = { ...eventLists.value, [type]: { ...cur, items: [...cur.items, synth] } };
   return synth;
 }
 

@@ -9,6 +9,7 @@ import {
 import type { StateSkills, UnitFull } from '../model/detail';
 import { recommendHp } from '../model/hp';
 import type { HpSeed } from '../model/hp';
+import type { DamageIndex } from '../model/damage';
 import { TYPE_COLORS } from '../model/adapter';
 import { potentialFlatBonus } from '../model/constants';
 import { loadLinksIndex } from '../model/wiki';
@@ -51,6 +52,16 @@ function loadHpSeed(): Promise<HpSeed | null> {
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
   return hpSeedPromise;
+}
+
+/** Índice de daño efectivo (tools/damage_sync.mjs) para el rol Superviviente; carga perezosa. */
+let dmgPromise: Promise<DamageIndex | null> | null = null;
+function loadDamageIndex(): Promise<DamageIndex | null> {
+  dmgPromise ??= fetch('/data/damage.index.json', { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => j?.cards ?? null)
+    .catch(() => null);
+  return dmgPromise;
 }
 
 /** Grupos de superataque en el orden en que el jugador las distingue. */
@@ -164,6 +175,7 @@ export function useUnitDetail(id: number) {
   // los datos de un estado con el de otro mientras se cargan.
   const [stateSkills, setStateSkills] = useState<{ key: string; data: StateSkills | null } | null>(null);
   const [seed, setSeed] = useState<HpSeed | null>(null);
+  const [dmg, setDmg] = useState<DamageIndex | null>(null);
   const [linksIndex, setLinksIndex] = useState<LinksIndex | null>(null);
   const [linksReady, setLinksReady] = useState(false);
   const [openLink, setOpenLink] = useState<string | null>(null);
@@ -219,6 +231,7 @@ export function useUnitDetail(id: number) {
     setShowAllSezaMedals(false);
     setAnimFailedKey(null); // la animación vuelve a intentarse en la nueva unidad
     loadHpSeed().then((s) => alive && setSeed(s));
+    loadDamageIndex().then((d) => alive && setDmg(d));
     loadLinksIndex().then((d) => {
       if (!alive) return;
       setLinksIndex(d);
@@ -269,7 +282,7 @@ export function useUnitDetail(id: number) {
   }, [activeForm?.id]);
 
   const color = summary ? TYPE_COLORS[summary.type] : '#444';
-  const hp = summary ? recommendHp(summary, full, seed) : null;
+  const hpFull = full && fullFor === id ? full : null;
 
   // ¿Se ve una forma transformada? Solo cuando su ficha YA llegó y
   // corresponde a la forma pedida (`formFull` puede ser aún de la anterior).
@@ -406,6 +419,21 @@ export function useUnitDetail(id: number) {
   const saMaxLevel =
     stateData?.maxSaLevel ?? (baseTexts ? viewFull?.maxSaLevel ?? summary?.maxSALevel ?? 0 : 0);
 
+  // Hidden Potential del ESTADO visible (Normal / EZA / SEZA): pasiva y Súper de ese
+  // estado. No se pinta mientras llegan la ficha o los textos del estado; sin ficha
+  // (offline) queda la estimación por rol. La comparación con su época
+  // (damage.index.json) es del estado vigente, así que solo se usa en él.
+  const hp =
+    summary && !viewingForm && (hpFull || !loading) && stateStatus !== 'loading'
+      ? recommendHp(
+          summary,
+          hpFull && { ...hpFull, passiveSkill: passive, superAttacks: allSa },
+          seed,
+          viewState === currentState ? dmg : null,
+          viewState,
+        )
+      : null;
+
   // Descarga (una vez por carta+step) de las habilidades del estado pedido.
   useEffect(() => {
     if (stateStep === null || stateKey === null) return;
@@ -527,9 +555,9 @@ export function useUnitDetail(id: number) {
     ezaSelected || sezaSelected ? stats[k].eza : stats[k].max;
 
   // Columnas 55 %/100 % del Hidden Potential (mismas fórmulas que dokkaninfo):
-  // 55 % = bonus plano según el tablero de potential (por stat: hp/atk/def),
-  // mapeo exacto de la fuente en constants.potentialFlatBonus); 100 % =
-  // ganancias absolutas del potential.
+  // 55 % = máx. + bonus plano del tablero de potential (mismo valor en
+  // HP/ATK/DEF, regla exacta de la fuente en constants.potentialFlatBonus);
+  // 100 % = máx. + ganancias absolutas del potential (hp_hipo…).
   const hipo = viewFull?.hipoGains ?? null;
   const hipoBoard = viewFull?.potentialBoardId ?? null;
   const hipoFlat = potentialFlatBonus(hipoBoard);

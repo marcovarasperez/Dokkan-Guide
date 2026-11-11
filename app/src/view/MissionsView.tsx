@@ -1,27 +1,52 @@
+import { useEffect } from 'preact/hooks';
 import { view } from '../controller/router';
-import SubTabs, { activeSubTab, type SubTab } from './SubTabs';
-
-const MISSION_TABS: SubTab[] = [
-  { id: 'missions', label: 'Missions', href: '#/misiones' },
-  { id: 'panelMissions', label: 'Panel Missions', href: '#/misiones/panel' },
-];
+import { loadMissions, missionsState } from '../model/game';
+import { LoadMore, MissionCard, StatusBlock } from './gameShared';
+import DkPageView from './DkPageView';
+import SubTabs from './SubTabs';
 
 /**
- * Vista "Missions": contenedor para Missions y Panel Missions.
+ * VISTA · "Missions" con sus dos sub-pestañas, como dokkaninfo:
+ *  - Missions (#/misiones): categorías paginadas con sus misiones y
+ *    recompensas (`model/game.ts` → `loadMissions`);
+ *  - Panel Missions (#/misiones/panel): página /panels de dokkaninfo en el
+ *    visor genérico (cada panel abre /panels/{id} dentro de la app).
  */
 export default function MissionsView() {
-  const currentView = view.value;
-  const activeTab = activeSubTab(MISSION_TABS, currentView);
+  const tabs = <SubTabs section="missions" label="Tipos de misiones" />;
+  if (view.value === 'panelMissions') return <DkPageView path="panels" header={tabs} title="Panel Missions" />;
+  return <MissionList tabs={tabs} />;
+}
+
+function MissionList({ tabs }: { tabs: preact.ComponentChildren }) {
+  const s = missionsState.value;
+  useEffect(() => {
+    if (missionsState.value.status === 'idle') void loadMissions();
+  }, []);
+  const reload = (): void => void loadMissions({ force: true });
 
   return (
     <div class="feed-scroll">
-      <div class="feed feed--banners">
-        <SubTabs tabs={MISSION_TABS} currentView={currentView} navLabel="Tipos de misiones" title="Missions" />
-
-        <p class="empty-state">
-          Vista de <strong>{activeTab.label}</strong> en desarrollo.
-          Próximamente mostrará el listado completo de misiones con sus recompensas.
-        </p>
+      <div class="feed">
+        {tabs}
+        <div class="feed__head">
+          <h2>Missions</h2>
+          <button type="button" class="game-refresh" onClick={reload}>
+            Actualizar
+          </button>
+        </div>
+        {s.status === 'error' && !s.items.length ? (
+          <StatusBlock status={s.status} onRetry={reload} />
+        ) : (
+          <div class="ev-grid">
+            {s.items.map((g) => (
+              <MissionCard group={g} key={g.id} />
+            ))}
+            {s.status !== 'ok' && !s.items.length && <p class="game-loading">Cargando…</p>}
+          </div>
+        )}
+        <LoadMore page={s.page} lastPage={s.lastPage} onMore={() => void loadMissions({ append: true })} />
+        <p class="game-legal">Datos: DOKKANINFO · Proyecto fan no comercial</p>
       </div>
     </div>
   );

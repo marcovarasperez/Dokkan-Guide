@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'preact/hooks';
-import { babaState, treasureDetail, loadBaba, loadTreasureDetail, closeTreasureDetail } from '../model/game';
+import { useEffect } from 'preact/hooks';
+import { babaShop } from './router';
+import { BABA_SHOPS, babaState, treasureDetail, loadBaba, loadTreasureDetail, closeTreasureDetail } from '../model/game';
 import type { BabaItem, BabaShopKey } from '../model/game';
 
 /**
@@ -21,16 +22,19 @@ import type { BabaItem, BabaShopKey } from '../model/game';
  */
 
 export function useBabaController() {
-  const [tab, setTab] = useState<BabaShopKey>('trade');
+  // La tienda activa sale de la RUTA (#/baba/{tienda}), igual que en el menú.
+  const tab: BabaShopKey = BABA_SHOPS.find((s) => s.slug === babaShop.value)?.key ?? 'trade';
 
   useEffect(() => {
+    if (tab !== 'treasure') closeTreasureDetail();
     void loadBaba(tab);
   }, [tab]);
 
   /** Cambio de sección: al salir de Tesoro se cierra el detalle de la joya. */
   const pickTab = (k: BabaShopKey): void => {
     if (k !== 'treasure' && tab === 'treasure') closeTreasureDetail();
-    setTab(k);
+    const slug = BABA_SHOPS.find((s) => s.key === k)?.slug ?? 'intercambio';
+    location.hash = `#/baba/${slug}`;
   };
 
   /** Botón «Actualizar»: recarga (force) la sección activa. */

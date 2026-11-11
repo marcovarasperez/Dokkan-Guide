@@ -38,7 +38,7 @@ const GROUPS: { key: BannerGroupKey; label: string }[] = [
 ];
 
 /** Clasificación de un banner activo según su tipo y nombre. */
-function groupOf(b: ArchiveBanner): BannerGroupKey {
+function groupOf(b: ArchiveBanner): BannerGroupKey | 'exclude' {
   const t = (b.type ?? '').toLowerCase();
   const name = (b.name ?? '').toLowerCase();
   // Excluir Tutorial Summon

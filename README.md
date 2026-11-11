@@ -18,6 +18,8 @@ Guía **fan no comercial** de personajes de *DBZ Dokkan Battle (Global)* con su 
 | 8 | 5 secciones: Eventos con sub-pestañas, Tienda de Baba con detalle por joya, Banners activos/finalizados + detalle, obtención con imágenes y deep-links, HP por estado EZA/SEZA | ✅ Aprobada |
 | 9 | Migración completa a dokkaninfo (fuente única viva): Eventos con foto + drops por etapa, Banners en 4 grupos (Recommended / Dragon Stone / Ticket / Friend Pts.), noticias con cuerpo completo, "Basic effect(s)" en naranja | ✅ Esta entrega |
 
+> **Documentación de arquitectura, ubicación de cada fichero y flujo de la app: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).**
+
 ## Estructura
 
 ```
@@ -33,8 +35,9 @@ Proyecto predeterminado/
 │   ├── android/                # Proyecto Gradle generado por Capacitor (compilación Android)
 │   ├── src-tauri/              # Shell Tauri 2: Cargo.toml, tauri.conf.json, capabilities, iconos (.exe Windows)
 │   └── src/
-│       ├── data/               # types, adapter (URLs de arte), repository, sync, http (transportes nativos), html, dinfo (parsers dokkaninfo), detail (ficha + obtención), hp, news, bannerArchive (banners), game (Eventos + Baba), format
-│       ├── ui/                 # App (router hash de 5 secciones), Header, FilterBar, UnitGrid (virtualizado), UnitCard, UnitDetail, NewsView, NewsDetail, BannersView, BannerDetail, EventosView, BabaView, InfoImg, SkillRich, gameShared
+│       ├── model/              # types, adapter (URLs de arte), repository, sync, http (transportes nativos), html, dinfo (parsers dokkaninfo), detail (ficha + obtención), hp, news, bannerArchive (banners), game (Eventos + Baba), format
+│       ├── controller/         # router, navigation (pestañas), un hook por vista
+│       ├── view/               # App (router hash de 5 secciones), Header, FilterBar, UnitGrid (virtualizado), UnitCard, UnitDetail, NewsView, NewsDetail, BannersView, BannerDetail, EventosView, BabaView, InfoImg, SkillRich, gameShared
 │       └── styles/             # Tema oscuro propio (variables + componentes)
 ├── docs/
 │   ├── BUILD.md                # Compilación: APK (Capacitor) y .exe (Tauri)
@@ -69,7 +72,7 @@ npx tauri build --no-bundle   # solo .exe portable (sin instaladores NSIS/MSI)
 
 ## Arquitectura (capas)
 
-- **`src/data`** — lógica y acceso a datos, sin UI:
+- **`src/model`** — lógica y acceso a datos, sin UI:
   - `types.ts`: modelo (`UnitSummary`, `SeedMeta`, `SyncState`).
   - `dinfo.ts`: parsers de dokkaninfo — índice de `/cards` (`v-bind:cardsjson`), página de carta (`datajson` → resumen + ficha completa), listados y **detalle de eventos** (niveles, etapas, recompensas), misiones y noticias; mapas `element` → tipo/clase y `rarity` (verificados con 1.458 muestras, conflictos 0); URLs de assets (eventos, thumbs, objetos).
   - `adapter.ts`: URLs de **arte** de unidades (thumbs/marcos/iconos desde el CDN para cachear en el WebView) + colores por tipo.
@@ -81,7 +84,7 @@ npx tauri build --no-bundle   # solo .exe portable (sin instaladores NSIS/MSI)
   - `http.ts`: transporte — proxy Vite (`/dinfo`) en dev; en producción, **import dinámico** del transporte nativo correspondiente (Tauri `plugin-http` / Capacitor `CapacitorHttp`): coste cero en web, sin CORS en los shells. `fetchInfoText`/`fetchInfoImage` envían UA + Accept-Language (dokkaninfo filtra peticiones sin cabeceras de navegador) y descargan imágenes como blob (el `<img>` directo queda bloqueado por **ORB**).
   - `game.ts`: contenido de **Eventos** (6 sub-pestañas: Eventos, Quest, Historia DB, Z-Battles, Torneos, Misiones) leído de dokkaninfo — foto por evento + **detalle perezoso con niveles/etapas y drops** (cacheado en `localStorage`) — y **Tienda de Baba** (4 secciones, con detalle por joya: precio en joyas, stock y vigencia), con caché por sección.
   - `bannerArchive.ts`: archivo de banners de dokkaninfo (listados **activos/finalizados** vía `/api/banners?status=` —con **carga completa** de todas las páginas para la vista de activos— y detalle por banner con sus destacados), con caché en `localStorage`.
-- **`src/ui`** — componentes Preact + señales; lista **virtualizada** (solo pinta las filas visibles; clave para ~1.500 tarjetas con imágenes). `FilterBar` implementa el **panel de clasificación** estilo juego del listado: filtros por tipo, **clase** (Súper/Extremo) y **rareza** (N→LR) más **orden multi-criterio** (más recientes · nombre · rareza · HP · ATK · DEF · coste) con conmutador de dirección ▲/▼. Incluye `SkillRich`, renderizador de habilidades con formato rico: encabezados en MAYÚSCULAS **todos en naranja** (incluido el efecto base "Basic effect(s)", igual que el resto de condiciones), puntos de lista con **flechita** de color, iconos inline `{passiveImg}` (PNG del CDN), números (`120%`, `+2`) y stats (`ATK`/`DEF`/`HP`) resaltados. `InfoImg` comparte la descarga nativa de imágenes dokkaninfo (blob en caché por sesión).
+- **`src/view`** — componentes Preact + señales; lista **virtualizada** (solo pinta las filas visibles; clave para ~1.500 tarjetas con imágenes). `FilterBar` implementa el **panel de clasificación** estilo juego del listado: filtros por tipo, **clase** (Súper/Extremo) y **rareza** (N→LR) más **orden multi-criterio** (más recientes · nombre · rareza · HP · ATK · DEF · coste) con conmutador de dirección ▲/▼. Incluye `SkillRich`, renderizador de habilidades con formato rico: encabezados en MAYÚSCULAS **todos en naranja** (incluido el efecto base "Basic effect(s)", igual que el resto de condiciones), puntos de lista con **flechita** de color, iconos inline `{passiveImg}` (PNG del CDN), números (`120%`, `+2`) y stats (`ATK`/`DEF`/`HP`) resaltados. `InfoImg` comparte la descarga nativa de imágenes dokkaninfo (blob en caché por sesión).
 
 ## Presentación de ficha
 

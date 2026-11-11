@@ -1,4 +1,5 @@
-import type { BabaItem, BabaChest, BabaShopKey } from '../model/game';
+import type { BabaItem, BabaChest } from '../model/game';
+import SubTabs from './SubTabs';
 import { getUnit } from '../model/repository';
 import { thumbUrl } from '../model/adapter';
 import { formatDate, formatNumber } from '../model/date';
@@ -16,12 +17,6 @@ import { LoadMore, StatusBlock } from './gameShared';
  * esta vista solo pinta la sección activa.
  */
 
-const BABA_TABS: { key: BabaShopKey; label: string }[] = [
-  { key: 'trade', label: 'Puntos de Intercambio' },
-  { key: 'zeni', label: 'Zeni' },
-  { key: 'treasure', label: 'Tesoro' },
-  { key: 'chests', label: 'Cofres Secretos' },
-];
 
 const n = (v: number): string => formatNumber(v);
 
@@ -75,7 +70,7 @@ function BabaItemCard({ it, unit }: { it: BabaItem; unit: string }) {
 }
 
 export default function BabaView() {
-  const { tab, baba, treasure: td, unit, pickTab, refresh, onRetry, onMore, openTreasure, retryTreasure, closeTreasure } =
+  const { tab, baba, treasure: td, unit, refresh, onRetry, onMore, openTreasure, retryTreasure, closeTreasure } =
     useBabaController();
 
   return (
@@ -87,19 +82,7 @@ export default function BabaView() {
         </button>
       </header>
 
-      <nav class="baba-tabs" aria-label="Secciones de la tienda de Baba">
-        {BABA_TABS.map((t) => (
-          <button
-            type="button"
-            key={t.key}
-            class={`baba-tab${tab === t.key ? ' baba-tab--active' : ''}`}
-            aria-current={tab === t.key ? 'page' : undefined}
-            onClick={() => pickTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <SubTabs section="baba" label="Tiendas de Baba" />
 
       <div class="game-body">
         {tab === 'chests' ? (

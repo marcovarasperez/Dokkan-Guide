@@ -3,6 +3,7 @@ import { formatNumber } from '../model/date';
 import { useCategoryController } from '../controller/categoryController';
 import MiniUnitCard from './MiniUnit';
 import { hideBroken } from './InfoImg';
+import SubTabs from './SubTabs';
 
 /** Imagen oficial de la etiqueta de categoría (assets de dokkaninfo). */
 const labelUrl = (id: number): string =>
@@ -41,7 +42,7 @@ export default function CategoryView({ id, units }: { id: number | null; units: 
       <div class="feed-scroll">
         <div class="cat-wrap">
           <p class="detail-back-row">
-            <a class="detail-back" href="#/">
+            <a class="detail-back" href="#/cartas">
               ← Volver al listado
             </a>
           </p>
@@ -57,10 +58,10 @@ export default function CategoryView({ id, units }: { id: number | null; units: 
       <div class="feed-scroll">
         <div class="cat-wrap">
           <p class="detail-back-row">
-            <a class="detail-back" href="#/categorias">
+            <a class="detail-back" href="#/cartas/categorias">
               ← Todas las categorías
             </a>
-            <a class="detail-back" href="#/">
+            <a class="detail-back" href="#/cartas">
               ← Volver al listado
             </a>
           </p>
@@ -138,8 +139,9 @@ export default function CategoryView({ id, units }: { id: number | null; units: 
   return (
     <div class="feed-scroll">
       <div class="cat-wrap">
+        <SubTabs section="cards" label="Secciones de cartas" />
         <p class="detail-back-row">
-          <a class="detail-back" href="#/">
+          <a class="detail-back" href="#/cartas">
             ← Volver al listado
           </a>
         </p>
@@ -158,7 +160,7 @@ export default function CategoryView({ id, units }: { id: number | null; units: 
             const nMembers = (idx?.members[String(c.id)] ?? []).length;
             const nLeaders = (idx?.leaders[String(c.id)] ?? []).length;
             return (
-              <a class="cat-card" href={`#/categorias/${c.id}`} key={c.id}>
+              <a class="cat-card" href={`#/cartas/categorias/${c.id}`} key={c.id}>
                 <img
                   class="cat-card__label"
                   src={labelUrl(c.id)}

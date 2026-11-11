@@ -67,7 +67,10 @@ async function loadInternal(): Promise<void> {
     fetchJson<SeedMeta>('/data/meta.json'),
   ]);
 
-  const seedDate = seedMeta.date ? parseEpoch(seedMeta.date) * 1000 : 0;
+  // Fecha del seed empaquetado: si un APK nuevo trae un seed más reciente que
+  // la caché local, gana el seed (antes se leía `meta.date`, que no existe, y
+  // la caché vieja ganaba siempre).
+  const seedDate = Date.parse(seedMeta?.generatedAt ?? '') || 0;
 
   // 2) Intentar leer caché local (IndexedDB)
   const cached = await dbGet<CachedUnits>(STORE_UNITS, UNITS_CACHE_KEY);

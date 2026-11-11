@@ -614,8 +614,51 @@ export function parseEventList(html: string): DkEventEntry[] {
       }));
   }
 
-  // Filas SSR (quest / dbstories): sin data embebida.
+  // Burst Mode (`genkai_battles_json`) y Ultimate Clash (`rmbattles_json`):
+  // listados paginados de Laravel sin nombre; se nombran por número y fecha.
+  const burst = extractVBind<{ data?: RawPagedEvent[] }>(html, 'genkai_battles_json');
+  if (Array.isArray(burst?.data)) {
+    return burst.data
+      .filter((r) => typeof r.id === 'number')
+      .map((r) => ({
+        id: r.id as number,
+        name: `Burst Mode #${r.id}`,
+        image: r.listbutton_image ? `${INFO_ASSET}/ingame/genkaibattle/${r.listbutton_image}` : null,
+        startsAt: parseEpoch(r.start_at),
+        endsAt: parseEpoch(r.end_at),
+      }));
+  }
+  const rm = extractVBind<{ data?: RawPagedEvent[] }>(html, 'rmbattles_json');
+  if (Array.isArray(rm?.data)) {
+    return rm.data
+      .filter((r) => typeof r.id === 'number')
+      .map((r) => ({
+        id: r.id as number,
+        name: `Ultimate Clash #${r.id}`,
+        image: null,
+        startsAt: parseEpoch(r.start_at),
+        endsAt: parseEpoch(r.end_at),
+      }));
+  }
+
+  // Filas SSR (quest / dbstories / sdbattle / dokkanfrontier): sin data embebida.
   return parseEventRows(html);
+}
+
+interface RawPagedEvent {
+  id?: number;
+  start_at?: unknown;
+  end_at?: unknown;
+  listbutton_image?: string | null;
+}
+
+/** Nº de páginas de los listados paginados (Burst Mode / Ultimate Clash). 1 si no aplica. */
+export function parseEventListLastPage(html: string): number {
+  for (const name of ['genkai_battles_json', 'rmbattles_json', 'budokais_json']) {
+    const j = extractVBind<{ last_page?: number }>(html, name);
+    if (j && typeof j.last_page === 'number') return j.last_page;
+  }
+  return 1;
 }
 
 function parseEventRows(html: string): DkEventEntry[] {
@@ -630,7 +673,8 @@ function parseEventRows(html: string): DkEventEntry[] {
     if (seen.has(id)) continue;
     seen.add(id);
     const img = a.querySelector('img[src]');
-    const text = (a.textContent ?? '').replace(/\s+/g, ' ').trim();
+    // Algunas filas repiten el texto (versión móvil + escritorio): se deduplica.
+    const text = (a.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/(.{6,}?) \1/g, '$1');
     out.push({
       id,
       name: text || null,
@@ -903,7 +947,8 @@ export function parseMissions(html: string): { categories: DkMissionCategory[]; 
     return {
       id: c.id ?? 0,
       name: decodeEntities(c.name ?? ''),
-      image: c.image_path ? infoAssetUrl(c.image_path) : null,
+      // Igual que dokkaninfo (setImage): solo el nombre del fichero, bajo ingame/missions/.
+      image: `${INFO_ASSET}/ingame/missions/${(c.image_path ?? '').split('/').pop() || 'mission_banner_oldmission.png'}`,
       missions: missionValues.map((m) => ({
         id: m.id ?? 0,
         name: decodeEntities((m.name ?? '').replace(/\s*\n\s*/g, ' ')),

@@ -1,12 +1,16 @@
 import type { UnitSummary, UnitType } from './types';
 import type { UnitFull } from './detail';
 import { INFO_ASSET } from './constants';
+import { identifyRole, losesBuffWhenHit, needsHits, restSkill, roleStep, weightedGain } from './role';
+import { damageVsPeers } from './damage';
+import type { DamageIndex } from './damage';
+import type { RoleResult } from './role';
 
 /**
  * CALCULADORA DE HIDDEN POTENTIAL (Global).
  *
  * Reglas (al pie de la letra):
- *  - 21 puntos a repartir. Máximo 15 en unpm.cmd run dev          na categoría y 6 en otra; la tercera
+ *  - 21 puntos a repartir. Máximo 15 en una categoría y 6 en otra; la tercera
  *    queda a 0 salvo los puntos de AFINIDAD.
  *  - Cada afinidad aporta 5 puntos iniciales, que se SUMAN en su categoría:
  *    AGL→5 Adicional · STR→5 Crítico · TEQ→5 Crítico · INT→5 Evasión · PHY→5 Adicional.
@@ -19,11 +23,13 @@ import { INFO_ASSET } from './constants';
  *      · Todos garantizados: 1 − (1−p)^N, N = 1 + nº de adicionales.
  *      · Con probabilidad q: los garantizados aportan (1−p); cada q aporta
  *        (1−p·q). Total = 1 − ∏ factores. Se reparte 50 % Super / 50 % normal.
- *  - Elección: PRIORIDAD ABSOLUTA del buff de 6-99 turnos al lanzar SU → 15
+ *  - Elección (criterios de las guías de Playmaker, ver docs/ARQUITECTURA.md): full
+ *    adicionales + resto en Crítico/Evasión; antes: prioridad del buff de 6-99 turnos → 15
  *    en Adicional. Si no, y sin adicionales en la pasiva → 15 en Adicional.
  *    Los 6 restantes van a la categoría de mayor GANANCIA (total con HP −
  *    pasiva sola), contando la afinidad. Con adicionales y sin prioridad, se
- *    comparan todas las distribuciones válidas por ganancia total.
+ *    comparan todas las distribuciones válidas por ganancia ponderada por el
+ *    ROL de la unidad (model/role.ts: tanque → evasión, nuker → daño…).
  */
 
 export type HpSourceKind = 'curated' | 'algorithm' | 'estimated';
@@ -62,12 +68,14 @@ export interface HpSummary {
   source: string;
   sourceUrl?: string;
   guideDate?: string;
+  /** Rol detectado (solo con pasiva disponible). */
+  role?: RoleResult;
 }
 
 /** Entrada curated del JSON (esquema en docs/hidden_potential_schema.md). */
 interface HpEntry {
   unitId: number;
-  variant?: 'base' | 'eza';
+  variant?: 'base' | 'eza' | 'seza';
   /** Niveles explícitos de la guía (los ausentes se toman como 0). */
   levels?: Partial<HpLevels>;
   note?: string;
@@ -138,7 +146,11 @@ const CHANCE_WORD: Record<string, number> = {
  * con sus líneas de continuación.
  */
 export function clauses(text: string): string[] {
-  const clean = text.replace(/\{passiveImg:[^}]*\}/g, ' ');
+  // Las flechas rojas (`down_r`) marcan una BAJADA: se conservan como `[DOWN]`
+  // para no sumar como probabilidad algo que la reduce.
+  const clean = text
+    .replace(/\{passiveImg:down[^}]*\}/g, ' [DOWN] ')
+    .replace(/\{passiveImg:[^}]*\}/g, ' ');
   const raw = clean.split('\n').map((s) => s.trim());
   const out: string[] = [];
   let buf: string | null = null;
@@ -208,6 +220,12 @@ function maxIfScaled(c: string, m: RegExpMatchArray): number {
   return up ? Number(up[1]) : base;
 }
 
+/** Condición en la propia línea que limita un efecto "garantizado" a un caso concreto. */
+const CONDITIONAL = /\b(?:if|when|as\s+the\s+\d+(?:st|nd|rd|th)\s+attacker|against|within\s+the\s+turn|once)\b/i;
+
+/** ¿La cláusula REDUCE la probabilidad (flecha roja `down_r`)? */
+const isReduction = (c: string): boolean => /\[DOWN\]/.test(c);
+
 /* ---------- Análisis de la unidad (textos en inglés de la fuente) ---------- */
 
 /** Adicionales de la pasiva: garantizados + probabilísticos (con su q). */
@@ -223,6 +241,12 @@ interface Traits {
   passiveDodge: number; // % (SUMA de todas las de la pasiva)
   /** ¿El SU sube ATK/DEF durante 6-99 turnos (o stacking/indefinite)? */
   raiseLong: boolean;
+  /** Rol detectado (pesos de la ganancia por rama). */
+  role: RoleResult;
+  /** Criterios de Playmaker (role.ts). */
+  losesBuffWhenHit: boolean;
+  needsHits: boolean;
+  allTypes: boolean;
 }
 
 /**
@@ -233,7 +257,10 @@ interface Traits {
  * ("if HP is…") se ignoran para no inflar.
  */
 function dodgeInClause(c: string): number {
-  if (targetsAllies(c)) return 0;
+  if (targetsAllies(c) || isReduction(c)) return 0;
+  // "Can nullify attacks that are guaranteed to hit, making it possible to
+  // evade these attacks": anula el "golpe seguro", no es evasión garantizada.
+  if (/guaranteed\s+to\s+hit/i.test(c)) return 0;
   if (/\bguarantee\w*\b[^.]{0,60}\b(?:dodge|evad)/i.test(c)) return 100;
   // número ANTES: "70% chance of evading"
   let m = c.match(/(\d+(?:\.\d+)?)\s*%\s*chance\s+(?:of|to)\s+(?:an?\s+)?(?:dodge|evad\w*)/i);
@@ -244,16 +271,17 @@ function dodgeInClause(c: string): number {
   // etiqueta ANTES: "High chance of evading…"
   m = c.match(/\b(very\s+high|great|high|medium|rare)\s+chance\s+(?:of|to)\s+(?:an?\s+)?(?:dodge|evad\w*)/i);
   if (m) return CHANCE_WORD[m[1].toLowerCase().replace(/\s+/g, ' ')] ?? 0;
-  // garantizada sin condición ("Evades enemy's attack")
-  if (/\b(?:evades?|dodges?)\b[^.]{0,40}\battack/i.test(c) && !/\bif\b/i.test(c)) return 100;
+  // garantizada sin condición ("Evades enemy's attack"). Si la línea la limita
+  // ("as the 1st attacker", "when…", "if…") solo cubre un ataque: no cuenta.
+  if (/\b(?:evades?|dodges?)\b[^.]{0,40}\battack/i.test(c) && !CONDITIONAL.test(c)) return 100;
   return 0;
 }
 
 /** Crítico de una cláusula (mismas formas que evasión, incl. escalado "up to"). */
 function critInClause(c: string): number {
-  if (targetsAllies(c)) return 0;
-  // garantizado: "Performs a critical hit" (sin condición "if")
-  if (/\bperforms?\s+a\s+critical\s+hit/i.test(c) && !/\bif\b/i.test(c)) return 100;
+  if (targetsAllies(c) || isReduction(c)) return 0;
+  // garantizado: "Performs a critical hit" (sin condición en la propia línea)
+  if (/\bperforms?\s+a\s+critical\s+hit/i.test(c) && !CONDITIONAL.test(c)) return 100;
   // número ANTES
   let m = c.match(
     /(\d+(?:\.\d+)?)\s*%\s*chance\s+(?:of|to)\s+(?:a\s+)?(?:performing|scoring|landing)?\s*(?:a\s+)?critical\s+hit/i,
@@ -337,6 +365,11 @@ export function parseAdditionals(text: string): PassiveAdds {
  * perduran (es el caso de uso del método). Un buff de <6 turnos, no.
  */
 export function raisesLongBuff(saTexts: string[], passive: string): boolean {
+  // En los Súper de dokkaninfo, "Raises ATK/DEF" SIN "for N turn(s)" es una subida
+  // permanente que acumula al infinito ("Greatly raises DEF and causes…").
+  for (const t of saTexts) {
+    if (/rais\w+\s+(?:ATK\s*&\s*DEF|ATK|DEF)(?:\s+by\s+\d+%)?(?!\s*&|\s+(?:by\s+\d+%\s+)?for\s+\d+\s+turns?)/i.test(t.replace(/\s+/g, ' '))) return true;
+  }
   for (const t of [...saTexts, passive]) {
     if (!/\b(rais\w+|stack\w+)\b/i.test(t)) continue;
     if (!/\b(atk|def|attack|defense)\b/i.test(t)) continue;
@@ -349,15 +382,32 @@ export function raisesLongBuff(saTexts: string[], passive: string): boolean {
   return false;
 }
 
-function analyze(summary: UnitSummary, full: UnitFull | null): Traits {
+function analyze(summary: UnitSummary, full: UnitFull | null, dmg: DamageIndex | null): Traits {
   const passive = (full?.passiveSkill ?? summary.passiveSkill)?.description?.trim() ?? '';
   const saTexts = (full?.superAttacks ?? []).map((s) => s.description);
+  const adds = parseAdditionals(passive);
+  const passiveCrit = parseCrit(passive);
+  const passiveDodge = parseDodge(passive);
+  const raiseLong = raisesLongBuff(saTexts, passive);
+  const role = identifyRole({
+    passive,
+    superText: saTexts.join(' '),
+    passiveCrit,
+    passiveDodge,
+    addsCount: adds.guaranteed + adds.probs.length,
+    raiseLong,
+    dmgVsPeers: damageVsPeers(summary.id, dmg),
+  });
   return {
     affinity: summary.type,
-    adds: parseAdditionals(passive),
-    passiveCrit: parseCrit(passive),
-    passiveDodge: parseDodge(passive),
-    raiseLong: raisesLongBuff(saTexts, passive),
+    adds,
+    passiveCrit,
+    passiveDodge,
+    raiseLong,
+    role,
+    losesBuffWhenHit: losesBuffWhenHit(passive),
+    needsHits: needsHits(passive),
+    allTypes: /effective against all types/i.test(passive),
   };
 }
 
@@ -365,14 +415,6 @@ function analyze(summary: UnitSummary, full: UnitFull | null): Traits {
 
 /** Conversión puntos → probabilidad. */
 const PER_POINT: Record<Skill, number> = { additional: 0.02, critical: 0.02, evasion: 0.01 };
-
-/** Prob. de que la pasiva lance al menos un adicional. */
-function passiveAdditionalChance(adds: PassiveAdds): number {
-  if (adds.guaranteed > 0) return 1;
-  let f = 1;
-  for (const q of adds.probs) f *= 1 - q;
-  return 1 - f;
-}
 
 /** Adicional total del HP: 1 − ∏ factores. Cada garantizado (incl. el ataque inicial) → (1−p); cada q → (1−p·q). */
 export function additionalTotal(p: number, adds: PassiveAdds): number {
@@ -396,18 +438,21 @@ export function dodgeTotal(passive: number, pts: number): number {
   return 1 - (1 - pD) * (1 - h);
 }
 
+/** Probabilidades finales (pasiva + HP) de un reparto de niveles. */
+function totalsOf(levels: HpLevels, t: Traits): HpTotals {
+  const addT = additionalTotal(Math.min(levels.additional * PER_POINT.additional, 1), t.adds);
+  return {
+    additional: addT,
+    additionalSuper: addT / 2,
+    additionalNormal: addT / 2,
+    critical: critTotal(t.passiveCrit, levels.critical),
+    evasion: dodgeTotal(t.passiveDodge, levels.evasion),
+  };
+}
+
 /* ---------- Elección de la distribución ---------- */
 
-/** Las 6 permutaciones válidas de (15, 6, 0). */
-const DIST: Ranking[] = [
-  ['additional', 'critical', 'evasion'],
-  ['additional', 'evasion', 'critical'],
-  ['critical', 'additional', 'evasion'],
-  ['critical', 'evasion', 'additional'],
-  ['evasion', 'additional', 'critical'],
-  ['evasion', 'critical', 'additional'],
-];
-
+/** Orden del reparto: [15 puntos, 6 puntos, 0 puntos]. */
 type Ranking = [Skill, Skill, Skill];
 
 /** Puntos repartidos (15/6/0) + afinidad, para un ranking dado. */
@@ -421,11 +466,13 @@ function levelsOf(ranking: Ranking, affinitySkill: Skill): HpLevels {
 
 /** Ganancia en puntos porcentuales de una distribución frente a la pasiva sola. */
 function totalGain(levels: HpLevels, t: Traits): number {
-  const pAdd = passiveAdditionalChance(t.adds);
-  const gAdd = additionalTotal(levels.additional * PER_POINT.additional, t.adds) - pAdd;
+  // additionalTotal ya ES lo que añade el HP (la pasiva sola no da adicionales del HP):
+  // restarle la chance de la pasiva daba ganancias negativas con adicionales garantizados.
+  const gAdd = additionalTotal(levels.additional * PER_POINT.additional, t.adds);
   const gCrit = critTotal(t.passiveCrit, levels.critical) - t.passiveCrit / 100;
   const gDodge = dodgeTotal(t.passiveDodge, levels.evasion) - t.passiveDodge / 100;
-  return gAdd + gCrit + gDodge;
+  // Ponderada por rol: un tanque valora más la evasión, un nuker el daño.
+  return weightedGain(t.role.weights, gAdd, gCrit, gDodge);
 }
 
 /** Formato 2 decimales con coma decimal (español). */
@@ -436,7 +483,6 @@ const pct0 = (x: number): string => (Math.round(x * 10) / 10).toString().replace
 /** Construye el resumen con el cálculo paso a paso. */
 function runAlgorithm(t: Traits): { levels: HpLevels; distributed: HpLevels; totals: HpTotals; steps: string[]; note: string } {
   const affSkill = AFFINITY_SKILL[t.affinity];
-  const pAdd = passiveAdditionalChance(t.adds);
   const addDesc =
     t.adds.guaranteed > 0 || t.adds.probs.length > 0
       ? `${t.adds.guaranteed} garantizado(s)${t.adds.probs.length ? `, ${t.adds.probs.map((q) => `${Math.round(q * 100)} %`).join(' / ')} por prob.` : ''}`
@@ -445,20 +491,37 @@ function runAlgorithm(t: Traits): { levels: HpLevels; distributed: HpLevels; tot
   // 1) Datos de entrada.
   const steps: string[] = [
     `1) Entrada — afinidad ${t.affinity} (→ +5 ${SKILL_LABEL[affSkill]}). Pasiva: crítico ${pct0(t.passiveCrit)} %, evasión ${pct0(t.passiveDodge)} %, adicional ${addDesc}. ¿Sube ATK/DEF 6-99 turnos al lanzar SU? ${t.raiseLong ? 'SÍ' : 'no'}.`,
+    `   ${roleStep(t.role)}`,
   ];
 
-  // 2) Prioridad del buff.
-  const usePriority = t.raiseLong || pAdd === 0;
-  if (t.raiseLong) {
-    steps.push('2) Prioridad del buff de 6-99 turnos: APLICADA → 15 en Adicional (por encima de todo cálculo).');
-  } else if (pAdd === 0) {
-    steps.push('2) Sin buff de 6-99 turnos y sin adicionales en la pasiva → 15 en Adicional (regla fija).');
+  // 2) Criterio de las guías de Playmaker: "full adicionales" es la base (más Súper =
+  // más ATK/DEF por Súper y más stacks) y el resto va a Crítico o Evasión; solo las
+  // builds puramente defensivas maxean Evasión.
+  const survivor = t.role.id === 'survivor';
+  if (survivor) {
+    steps.push('2) Rol superviviente (kit de esquiva y poco daño para su época): 15 en Evasión y 6 en Adicional; el Crítico no le sirve.');
+  } else if (t.losesBuffWhenHit) {
+    steps.push('2) Build defensiva: tiene una defensa que se pierde al recibir golpes; esquivar la alarga → 15 en Evasión y 6 en Adicional.');
+  } else if (t.needsHits) {
+    steps.push('2) Full adicionales (15). Necesita RECIBIR golpes para potenciarse: la Evasión va en su contra → el resto a Crítico.');
   } else {
-    steps.push('2) Sin prioridad: la unidad sí tiene adicionales en la pasiva → se comparan TODAS las distribuciones válidas por ganancia total.');
+    steps.push('2) Full adicionales (15). El resto va a Crítico o Evasión: la que MENOS tenga ya su pasiva (se combinan multiplicando, así que repetir lo que ya tiene renta poco); si son parecidas, la que no da ya su tipo; si ya es efectivo contra todos los tipos, Evasión.');
   }
 
+  // Resto (6 puntos) según las guías: role.ts → restSkill.
+  const rest = restSkill({
+    crit: t.passiveCrit,
+    dodge: t.passiveDodge,
+    needsHits: t.needsHits,
+    allTypes: t.allTypes,
+    affinity: affSkill,
+  });
+
   // Candidatas permitidas.
-  const candidates = usePriority ? DIST.filter((r) => r[0] === 'additional') : DIST;
+  const candidates: Ranking[] =
+    survivor || t.losesBuffWhenHit
+      ? [['evasion', 'additional', 'critical']]
+      : [['additional', rest, rest === 'critical' ? 'evasion' : 'critical']];
 
   // 3) Cálculos de ganancia de cada opción.
   let best = candidates[0];
@@ -471,17 +534,17 @@ function runAlgorithm(t: Traits): { levels: HpLevels; distributed: HpLevels; tot
       bestGain = g;
       best = r;
     }
-    if (usePriority || candidates.length <= 2) {
+    {
       gainLines.push(
-        `   · ${r[0]} 15 · ${r[1]} 6 (+5 afinidad si aplica) · ${r[2]} 0 → ganancia total ${f2(g)} pp`,
+        `   · ${r[0]} 15 · ${r[1]} 6 (+5 afinidad si aplica) · ${r[2]} 0 → ganancia ponderada ${f2(g)} pp`,
       );
     }
   }
   if (gainLines.length) {
-    steps.push('3) Ganancia de cada opción (total con HP − pasiva sola):');
+    steps.push('3) Ganancia de cada opción ponderada por rol (total con HP − pasiva sola):');
     steps.push(...gainLines);
   } else {
-    steps.push(`3) Ganancia total de la mejor distribución (${best[0]} 15 · ${best[1]} 6): ${f2(bestGain)} pp.`);
+    steps.push(`3) Ganancia ponderada de la mejor distribución (${best[0]} 15 · ${best[1]} 6): ${f2(bestGain)} pp.`);
   }
 
   // 4) Reparto final (indicando afinidad).
@@ -494,75 +557,76 @@ function runAlgorithm(t: Traits): { levels: HpLevels; distributed: HpLevels; tot
   );
 
   // 5) Tabla final.
-  const addT = additionalTotal(levels.additional * PER_POINT.additional, t.adds);
-  const totals: HpTotals = {
-    additional: addT,
-    additionalSuper: addT / 2,
-    additionalNormal: addT / 2,
-    critical: critTotal(t.passiveCrit, levels.critical),
-    evasion: dodgeTotal(t.passiveDodge, levels.evasion),
-  };
+  const totals = totalsOf(levels, t);
+  const addT = totals.additional;
   steps.push(
     `5) Totales — Adicional ${f2(addT)} % (${f2(totals.additionalSuper)} % Super / ${f2(totals.additionalNormal)} % normal) · Crítico ${f2(totals.critical)} % · Evasión ${f2(totals.evasion)} %.`,
   );
 
-  const note = t.raiseLong
-    ? 'Prioridad absoluta: el SU sube ATK/DEF 6-99 turnos → 15 en Adicional para acumular.'
-    : pAdd === 0
-      ? 'Sin adicionales propios: el Adicional es su vía de daño extra, así que va a 15.'
-      : 'Distribución con mayor ganancia total comparando todas las válidas.';
+  const note = survivor
+    ? 'Superviviente: hace poco daño, rellena huecos; todo a sobrevivir (Evasión) y Adicional para no perder turnos.'
+    : t.losesBuffWhenHit
+      ? 'Build defensiva: esquivar alarga su defensa "antes de recibir N ataques"; full Evasión y el resto en Adicional.'
+      : t.needsHits
+        ? `${t.role.label}: full adicionales; necesita recibir golpes, así que el resto va a Crítico y no a Evasión.`
+        : `${t.role.label} (${t.role.slot}): full adicionales y el resto en ${SKILL_LABEL[best[1]]}, lo que menos le da ya su pasiva.`;
 
   return { levels, distributed, totals, steps, note };
 }
 
 /* ---------- API pública ---------- */
 
-/** Recomienda el Hidden Potential para el estado vigente de la unidad. */
+/**
+ * Recomienda el Hidden Potential de la unidad en un ESTADO (Normal / EZA / SEZA):
+ * `full` trae ya la pasiva y los Súper de ese estado, así que cada estado puede
+ * tener un reparto distinto. Sin `state` se toma el vigente.
+ */
 export function recommendHp(
   summary: UnitSummary,
   full: UnitFull | null,
   seed: HpSeed | null,
+  dmg: DamageIndex | null = null,
+  state?: 'base' | 'eza' | 'seza',
 ): HpSummary {
   const affSkill = AFFINITY_SKILL[summary.type];
   const affinity = { type: summary.type, skill: affSkill, points: 5 };
 
-  // 1) Guía curated (autor citado, edición manual en hidden_potential.json).
+  // 1) Guía curated del MISMO estado (si no hay: la del estado anterior; SEZA → EZA → base).
   const ezaLive = !!summary.releaseDates.eza && (summary.releaseDates.eza * 1000) <= Date.now();
-  const wantVariant = ezaLive ? 'eza' : 'base';
-  const curated =
-    seed?.entries.find((e) => e.unitId === summary.id && (e.variant ?? 'base') === wantVariant) ??
-    seed?.entries.find((e) => e.unitId === summary.id && (e.variant ?? 'base') === 'base');
+  const wantVariant = state ?? (ezaLive ? 'eza' : 'base');
+  const order = wantVariant === 'seza' ? ['seza', 'eza', 'base'] : wantVariant === 'eza' ? ['eza', 'base'] : ['base'];
+  const curated = order
+    .map((v) => seed?.entries.find((e) => e.unitId === summary.id && (e.variant ?? 'base') === v))
+    .find((e) => e);
   if (curated) {
     const levels: HpLevels = {
       additional: curated.levels?.additional ?? 0,
       critical: curated.levels?.critical ?? 0,
       evasion: curated.levels?.evasion ?? 0,
     };
-    const addT = additionalTotal(levels.additional * PER_POINT.additional, { guaranteed: 0, probs: [] });
+    // Totales con la pasiva incluida (mismas fórmulas que el cálculo local);
+    // antes se ignoraba la pasiva y la guía curated mostraba probabilidades
+    // más bajas que el propio algoritmo para la misma unidad.
+    const t = analyze(summary, full, dmg);
     return {
       kind: 'curated',
       levels,
       distributed: levels,
       affinity,
-      totals: {
-        additional: addT,
-        additionalSuper: addT / 2,
-        additionalNormal: addT / 2,
-        critical: levels.critical * PER_POINT.critical,
-        evasion: levels.evasion * PER_POINT.evasion,
-      },
+      totals: totalsOf(levels, t),
       steps: ['Distribución verificada de la guía (no se recalcula).'],
       note: curated.note ?? 'Distribución según la guía verificada de esta unidad.',
       source: `Source: ${curated.source}`,
       sourceUrl: curated.sourceUrl,
       guideDate: curated.guideDate,
+      role: t.role,
     };
   }
 
   // 2) Método de cálculo local (reglas del prompt).
   const passive = (full?.passiveSkill ?? summary.passiveSkill)?.description?.trim();
   if (passive) {
-    const t = analyze(summary, full);
+    const t = analyze(summary, full, dmg);
     const r = runAlgorithm(t);
     return {
       kind: 'algorithm',
@@ -572,7 +636,8 @@ export function recommendHp(
       totals: r.totals,
       steps: r.steps,
       note: r.note,
-      source: 'Cálculo local (reglas del método)',
+      source: 'Cálculo local (criterios de las guías de Playmaker + rol)',
+      role: t.role,
     };
   }
 
